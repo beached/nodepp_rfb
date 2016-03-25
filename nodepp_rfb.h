@@ -25,6 +25,7 @@
 #include <boost/utility/string_ref.hpp>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "base_event_emitter.h"
 #include "daw_range.h"
