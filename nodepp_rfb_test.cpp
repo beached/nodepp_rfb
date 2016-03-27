@@ -20,23 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <cstdlib>
+
+
 #include "nodepp_rfb.h"
 
-namespace daw { 
-	namespace rfb {
-		RFBServer::RFBServer( uint16_t port, uint16_t width, uint16_t height, Depth depth, daw::nodepp::base::EventEmitter emitter ):
-			m_server{ daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) },
-			m_frame_buffer_mutex{ },
-			m_dimensions{ std::make_pair( width, height ) },
-			m_framebuffers{ std::make_pair( std::vector<uint8_t>( width*height*depth, 0 ), std::vector<uint8_t>( width*height*depth, 0 ) ) },
-			m_current_framebuffer{ &m_framebuffers.first } {
+int main( int, char ** ) {
 
-			m_server->on_connection( []( auto socket ) {
-				socket << "RFB 003.003\n";
-				
-			} );
-
-			m_server->listen( port );
-		}
-	}	// namespace rfb
-}    // namespace daw
+	return EXIT_SUCCESS;
+}

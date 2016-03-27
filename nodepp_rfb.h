@@ -22,8 +22,31 @@
 
 #pragma once
 
+#include <cstdint>
+#include <mutex>
+#include <utility>
+#include <vector>
+
+#include "base_event_emitter.h"
+#include "lib_net_server.h"
+
 namespace daw { 
 	namespace rfb {
+		class RFBServer {
+			daw::nodepp::lib::net::NetServer m_server;
+			std::mutex m_frame_buffer_mutex;
+			std::pair<uint16_t, uint16_t> m_dimensions;
+			std::pair<std::vector<uint8_t>, std::vector<uint8_t>> m_framebuffers;
+			std::vector<uint8_t> * m_current_framebuffer;
+		public:
+			enum Depth : uint8_t { eight = 8, sixteen = 16, twentyfour = 24 };
+			RFBServer( uint16_t port, uint16_t width, uint16_t height, Depth depth, daw::nodepp::base::EventEmitter emitter = daw::nodepp::base::create_event_emitter( ) );
 
+			void modify_frame_buffer( std::function<void( std::vector<uint8_t> & frame_buffer )> callback );
+			void swap_buffer( );
+			uint16_t width( ) const;
+			uint16_t height( ) const;
+
+		};	// class RFBServerImpl
 	}	// namespace rfb
 }    // namespace daw

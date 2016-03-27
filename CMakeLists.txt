@@ -8,6 +8,8 @@ set( Boost_USE_STATIC_RUNTIME OFF )
 find_package( Boost 1.59.0 REQUIRED COMPONENTS system filesystem regex unit_test_framework program_options iostreams )
 set( Boost_Libs ${BOOST_Libraries} -lboost_system -lboost_regex -lboost_filesystem -lboost_program_options -lboost_iostreams )
 
+find_package(OpenSSL REQUIRED)
+
 MESSAGE( WARNING "Current Compiler:" ${CMAKE_CXX_COMPILER_ID} )
 IF( ${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" )
 	MESSAGE( WARNING "Using Visual Studio" )
@@ -42,6 +44,7 @@ ExternalProject_Add(
 set( SOURCE_FILES
 		nodepp_rfb.cpp
 		nodepp_rfb.h
+		nodepp_rfb_test.cpp
 		)
 
 ExternalProject_Get_Property( nodepp source_dir )
@@ -52,6 +55,8 @@ include_directories( "${source_dir}/header_libraries" )
 
 include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
 
+include_directories( SYSTEM ${OPENSSL_INCLUDE_DIR} )
+
 link_directories( ${Boost_LIBRARY_DIRS} )
 
 ExternalProject_Get_Property( nodepp binary_dir )
@@ -61,4 +66,4 @@ link_directories( ${binary_dir}/char_range )
 add_executable( nodepp_rfb ${SOURCE_FILES} )
 add_dependencies( nodepp_rfb nodepp )
 
-target_link_libraries( nodepp_rfb lib_nodepp char_range ${CMAKE_DL_LIBS} ${Boost_Libs} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
+target_link_libraries( nodepp_rfb lib_nodepp char_range ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_Libs} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
