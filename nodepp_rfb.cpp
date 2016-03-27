@@ -24,19 +24,51 @@
 
 namespace daw { 
 	namespace rfb {
-		RFBServer::RFBServer( uint16_t port, uint16_t width, uint16_t height, Depth depth, daw::nodepp::base::EventEmitter emitter ):
-			m_server{ daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) },
-			m_frame_buffer_mutex{ },
-			m_dimensions{ std::make_pair( width, height ) },
-			m_framebuffers{ std::make_pair( std::vector<uint8_t>( width*height*depth, 0 ), std::vector<uint8_t>( width*height*depth, 0 ) ) },
-			m_current_framebuffer{ &m_framebuffers.first } {
+		namespace impl {
+			class RFBServerImpl { 
+			public:
+				uint16_t width( ) const {
+					return 0;
+				}
 
-			m_server->on_connection( []( auto socket ) {
-				socket << "RFB 003.003\n";
-				
-			} );
+				uint16_t height( ) const {
+					return 0;
+				}
 
-			m_server->listen( port );
+
+			};	// class RFBServerImpl
+		}	// namespace impl
+
+		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ) {
+
 		}
+
+		RFBServer::~RFBServer( ) { }
+
+		RFBServer::RFBServer( RFBServer && other ): m_impl( std::move( other.m_impl ) ) { }
+		
+		RFBServer & RFBServer::operator=( RFBServer && rhs ) {
+			if( this != &rhs ) {
+				m_impl = std::move( rhs.m_impl );
+			}
+			return *this;
+		}
+
+		uint16_t RFBServer::width( ) const {
+			return m_impl->width( );
+		}
+
+		uint16_t RFBServer::height( ) const {
+			return m_impl->height( );
+		}
+
+		void RFBServer::listen( uint16_t port ) {
+
+		}
+
+		void RFBServer::close( ) {
+
+		}
+
 	}	// namespace rfb
 }    // namespace daw

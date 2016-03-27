@@ -21,11 +21,16 @@
 // SOFTWARE.
 
 #include <cstdlib>
-
+#include <thread>
 
 #include "nodepp_rfb.h"
 
+
 int main( int, char ** ) {
+
+	daw::rfb::RFBServer server{ 640, 480, daw::rfb::RFBServer::BitDepth::eight };
+
+	server.listen( 1234 );
 
 	return EXIT_SUCCESS;
 }
