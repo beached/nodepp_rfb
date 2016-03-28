@@ -20,30 +20,65 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+
+#include <vector>
+
 #include "nodepp_rfb.h"
+
+
 
 namespace daw { 
 	namespace rfb {
 		namespace impl {
 			class RFBServerImpl { 
+				uint16_t m_width;
+				uint16_t m_height;
+				uint8_t m_bit_depth;
+				std::vector<uint8_t> m_buffer;
 			public:
+				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
+					m_width{ width },
+					m_height{ height },
+					m_bit_depth{ bit_depth },
+					m_buffer( static_cast<size_t>(width*height*bit_depth), 0 ) {
+				}
+				
 				uint16_t width( ) const {
-					return 0;
+					return m_width;
 				}
 
 				uint16_t height( ) const {
-					return 0;
+					return m_height;
 				}
 
+				Box get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) {
+					assert( y2 >= y1 );
+					assert( x2 >= x1 );
+					Box result;
+					result.reserve( static_cast<size_t>(y2 - y1) );
 
+					auto const width = x2 - x1;
+					for( size_t n = y1; n < y2; ++n ) {
+						auto p1 = m_buffer.begin( ) + (m_width*n) + x1;
+						auto rng = daw::range::make_range( p1, p1 + width );
+						result.push_back( rng );
+					}
+					return result;
+				}
 			};	// class RFBServerImpl
 		}	// namespace impl
+		namespace {
+			constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) {
+				return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
+			}
+		}	// namespace anonymous
 
-		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ) {
+		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ):
+			m_impl( std::make_unique<impl::RFBServerImpl>( width, height, get_bit_depth( depth ), std::move( emitter ) ) ) {
 
 		}
 
-		RFBServer::~RFBServer( ) { }
+		RFBServer::~RFBServer( ) { }	// Empty but cannot use default.  The destructor on std::unique_ptr needs to know the full info for RFBServerImpl
 
 		RFBServer::RFBServer( RFBServer && other ): m_impl( std::move( other.m_impl ) ) { }
 		
@@ -70,5 +105,20 @@ namespace daw {
 
 		}
 
+		void RFBServer::on_key_event( std::function<void( bool key_down, uint32_t key )> callback ) {
+		}
+
+		void RFBServer::on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback ) {
+		}
+
+		void RFBServer::on_client_clipboard_text( std::function<void( boost::string_ref text )> callback ) {
+		}
+
+		Box RFBServer::get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) {
+			return m_impl->get_area( x1, y1, x2, y2 );
+		}
+
+		void RFBServer::update( ) {
+		}
 	}	// namespace rfb
 }    // namespace daw

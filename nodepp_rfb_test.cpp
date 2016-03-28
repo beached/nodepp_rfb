@@ -28,7 +28,7 @@
 
 int main( int, char ** ) {
 
-	daw::rfb::RFBServer server{ 640, 480, daw::rfb::RFBServer::BitDepth::eight };
+	daw::rfb::RFBServer server{ 640, 480, daw::rfb::BitDepth::eight };
 
 	server.listen( 1234 );
 

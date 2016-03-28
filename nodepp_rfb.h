@@ -22,9 +22,12 @@
 
 #pragma once
 
+#include <boost/utility/string_ref.hpp>
 #include <cstdint>
+#include <string>
 
 #include "base_event_emitter.h"
+#include "daw_range.h"
 
 namespace daw { 
 	namespace rfb {
@@ -33,12 +36,31 @@ namespace daw {
 			class RFBServerImpl;
 		}	// namespace impl
 
+		namespace BitDepth {
+			enum values: uint8_t { eight = 8, sixteen = 16, thirtytwo = 32 };
+		}	// namespace BitDepth
+
+		union ButtonMask {
+			uint8_t value;
+			struct {
+				bool button_1 : 1;
+				bool button_2 : 1;
+				bool button_3 : 1;
+				bool button_4 : 1;
+				bool button_5 : 1;
+				bool button_6 : 1;
+				bool button_7 : 1;
+				bool button_8 : 1;
+			} button;
+		};	// union ButtonMask
+
+		using Box = std::vector<daw::range::Range<uint8_t *>>;
+
 		class RFBServer {
 			std::unique_ptr<impl::RFBServerImpl> m_impl;
 		public:
-			struct BitDepth {
-				enum values: uint8_t { eight = 8, sixteen = 16, twentyfour = 24 };
-			};
+
+			
 
 			RFBServer( ) = delete;
 			RFBServer( RFBServer const & ) = delete;
@@ -56,6 +78,19 @@ namespace daw {
 			void listen( uint16_t port );
 			void close( );
 
+			void on_key_event( std::function<void( bool key_down, uint32_t key )> callback );
+			void on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback );
+			void on_client_clipboard_text( std::function<void( boost::string_ref text )> callback );
+
+			void send_clipboard_text( boost::string_ref text );
+
+			//////////////////////////////////////////////////////////////////////////
+			/// Summary: get a bounded area that will later be updated to the client
+			Box get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 );
+
+			//////////////////////////////////////////////////////////////////////////
+			/// Summary: send all updated areas to client
+			void update( );
 		};	// class RFBServer
 	}	// namespace rfb
 }    // namespace daw
