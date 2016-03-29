@@ -58,8 +58,8 @@ namespace daw {
 						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
 							socket->write_async( *buffer );
 						} );
-						socket->emitter( )->on( "close", [callback_id, &]( ) {
-							m_server->emitter( )->remove_listener( "send_buffer", callback_id );
+						socket->emitter( )->on( "close", [callback_id, this]( ) {
+							this->m_server->emitter( )->remove_listener( "send_buffer", callback_id );
 						} );
 
 						socket << "RFB 003.003\n";
