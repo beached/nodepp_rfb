@@ -29,6 +29,12 @@
 
 namespace daw { 
 	namespace rfb {
+		namespace {
+			constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) {
+				return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
+			}
+		}	// namespace anonymous
+
 		namespace impl {
 			template<typename Collection, typename Func>
 			void process_all( Collection & values, Func f ) {
@@ -64,7 +70,18 @@ namespace daw {
 				// Send name length/name after
 
 			};	// struct ServerInitialisation
-
+			ServerInitialisation create_server_initialization_message( uint16_t width, uint16_t height, BitDepth::values depth ) {
+				ServerInitialisation result { 0 };
+				result.width = width;
+				result.height = height;
+				result.pixel_format.bpp = get_bit_depth( depth );
+				result.pixel_format.depth = get_bit_depth( depth );
+				result.pixel_format.true_colour_flag = true;
+				result.pixel_format.red_max = 255;
+				result.pixel_format.blue_max = 255;
+				result.pixel_format.green_max = 255;
+				return result;
+			}
 			class RFBServerImpl { 
 				uint16_t m_width;
 				uint16_t m_height;
@@ -72,6 +89,7 @@ namespace daw {
 				std::vector<uint8_t> m_buffer;
 				std::vector<Update> m_updates;
 				daw::nodepp::lib::net::NetServer m_server;
+				std::thread m_service_thread;
 
 				template<typename T>
 				static std::vector<unsigned char> to_bytes( T const & value ) {
@@ -141,7 +159,11 @@ namespace daw {
 								if( !is_shared ) {
 									this->m_server->emitter( )->emit( "close_all", callback_id );
 								}
-								socket->
+								auto msg = std::make_shared<daw::nodepp::base::data_t>( );
+								append( *msg, to_bytes( create_server_initialization_message( m_width, m_height, BitDepth::thirtytwo ) ) );
+								std::string const title = "Test RFB Service";
+								append( *msg, title );
+								socket->write_async( *msg );
 							} );
 						} );
 						socket << "RFB 003.003\n";
@@ -152,9 +174,11 @@ namespace daw {
 					m_width{ width },
 					m_height{ height },
 					m_bit_depth{ bit_depth },
-					m_buffer( static_cast<size_t>(width*height*bit_depth), 0 ),
+					m_buffer( static_cast<size_t>(width*height*(bit_depth == 8 ? 1 : bit_depth == 16 ? 2 : 4)), 0 ),
 					m_updates( ),
-					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ) {
+					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ),
+					m_service_thread( ) {
+					setup_callbacks( );
 				}
 				
 				uint16_t width( ) const {
@@ -241,13 +265,20 @@ namespace daw {
 					send_all( buffer );
 				}
 
+				void listen( uint16_t port ) {
+					m_server->listen( port );
+					m_service_thread = std::thread( []( ) {
+						daw::nodepp::base::start_service( daw::nodepp::base::StartServiceMode::Single );
+					} );
+				}
+
+				void close( ) {
+					daw::nodepp::base::ServiceHandle::stop( );
+					m_service_thread.join( );
+				}
+
 			};	// class RFBServerImpl
 		}	// namespace impl
-		namespace {
-			constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) {
-				return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
-			}
-		}	// namespace anonymous
 
 		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ):
 			m_impl( std::make_unique<impl::RFBServerImpl>( width, height, get_bit_depth( depth ), std::move( emitter ) ) ) {
@@ -273,10 +304,11 @@ namespace daw {
 		}
 
 		void RFBServer::listen( uint16_t port ) {
-
+			m_impl->listen( port );
 		}
 
 		void RFBServer::close( ) {
+			m_impl->close( );
 
 		}
 
@@ -306,9 +338,10 @@ namespace daw {
 
 		BoxReadOnly RFBServer::get_readonly_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) const {
 			return m_impl->get_read_only_area( x1, y1, x2, y2 );
-		}
+		}		
 
 		void RFBServer::update( ) {
+			m_impl->update( );
 		}
 	}	// namespace rfb
 }    // namespace daw

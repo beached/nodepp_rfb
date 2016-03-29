@@ -55,6 +55,13 @@ namespace daw {
 			} button;
 		};	// union ButtonMask
 
+		struct Colour {
+			uint8_t red;
+			uint8_t green;
+			uint8_t blue;
+			uint8_t padding;
+		};
+
 		using Box = std::vector<daw::range::Range<uint8_t *>>;
 		using BoxReadOnly = std::vector<daw::range::Range<uint8_t const *>>;
 
