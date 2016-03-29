@@ -55,7 +55,7 @@ namespace daw {
 
 				void setup_callbacks( ) {
 					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
-						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer, false ) {
+						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
 							socket->write_async( *buffer );
 						} );
 						socket->emitter( )->on( "close", [callback_id, &]( ) {
