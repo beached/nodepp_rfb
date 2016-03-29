@@ -24,23 +24,44 @@
 #include <vector>
 
 #include "nodepp_rfb.h"
-
+#include "lib_net_server.h"
 
 
 namespace daw { 
 	namespace rfb {
 		namespace impl {
+			template<typename Collection, typename Func>
+			void process_all( Collection & values, Func f ) {
+				while( !values.empty( ) ) {
+					f( values.back( ) );
+					values.pop_back( );
+				}
+			}
+
+			struct Update {
+				uint16_t x;
+				uint16_t y;
+				uint16_t width;
+				uint16_t height;
+			};	// struct Update
+
 			class RFBServerImpl { 
 				uint16_t m_width;
 				uint16_t m_height;
 				uint8_t m_bit_depth;
 				std::vector<uint8_t> m_buffer;
+				std::vector<Update> m_updates;
+				daw::nodepp::lib::net::NetServer m_server;
+				std::list<daw::nodepp::lib::net::NetSocketStream> m_connections;
 			public:
 				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
 					m_width{ width },
 					m_height{ height },
 					m_bit_depth{ bit_depth },
-					m_buffer( static_cast<size_t>(width*height*bit_depth), 0 ) {
+					m_buffer( static_cast<size_t>(width*height*bit_depth), 0 ),
+					m_updates( ),
+					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ),
+					m_connections( ) {
 				}
 				
 				uint16_t width( ) const {
@@ -63,7 +84,56 @@ namespace daw {
 						auto rng = daw::range::make_range( p1, p1 + width );
 						result.push_back( rng );
 					}
+					m_updates.push_back( { x1, y1, static_cast<uint16_t>(x2 - x1), static_cast<uint16_t>(y2 - y1) } );
 					return result;
+				}
+
+				BoxReadOnly get_read_only_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) const {
+					assert( y2 >= y1 );
+					assert( x2 >= x1 );
+					BoxReadOnly result;
+					result.reserve( static_cast<size_t>(y2 - y1) );
+
+					auto const width = x2 - x1;
+					for( size_t n = y1; n < y2; ++n ) {
+						auto p1 = m_buffer.data( ) + (m_width*n) + x1;
+						auto rng = daw::range::make_range<uint8_t const *>( p1, p1 + width );
+						result.push_back( rng );
+					}
+					return result;
+				}
+
+			private:
+				template<typename T>
+				static std::vector<unsigned char> to_bytes( T const & value ) {
+					auto const N = sizeof( T );
+					std::vector<unsigned char> result( N );
+					*(reinterpret_cast<T *>(result.data( ))) = value;
+					return result;
+				}
+
+				template<typename T, typename U>
+				static void append( T & destination, U const & source ) {
+					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
+				}
+				
+			public:
+				void update( ) {
+					auto buffer = std::make_shared<daw::nodepp::base::data_t>( );
+					buffer->push_back( 0 );	// Message Type, FrameBufferUpdate
+					buffer->push_back( 0 );	// Padding
+					append( *buffer, to_bytes( static_cast<uint16_t>(m_updates.size( )) ) );
+					impl::process_all( m_updates, [&]( auto const & u ) {						
+						append( *buffer, to_bytes( u ) );
+						buffer->push_back( 0 );	// Encoding type RAW
+						for( size_t row = u.y; row < u.y + u.height; ++row ) {
+							append( *buffer, daw::range::make_range( m_buffer.begin( ) + (u.y*m_width) + u.x, m_buffer.begin( ) + ((u.y + u.height)*m_width) + u.x + u.width ) );
+						}
+					} );
+					impl::process_all( m_connections, [buffer]( daw::nodepp::lib::net::NetSocketStream & socket ) {
+						socket->write_async( *buffer );
+					} );
+
 				}
 			};	// class RFBServerImpl
 		}	// namespace impl
@@ -116,6 +186,10 @@ namespace daw {
 
 		Box RFBServer::get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) {
 			return m_impl->get_area( x1, y1, x2, y2 );
+		}
+
+		BoxReadOnly RFBServer::get_readonly_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) const {
+			return m_impl->get_read_only_area( x1, y1, x2, y2 );
 		}
 
 		void RFBServer::update( ) {

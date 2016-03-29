@@ -56,6 +56,7 @@ namespace daw {
 		};	// union ButtonMask
 
 		using Box = std::vector<daw::range::Range<uint8_t *>>;
+		using BoxReadOnly = std::vector<daw::range::Range<uint8_t const *>>;
 
 		class RFBServer {
 			std::unique_ptr<impl::RFBServerImpl> m_impl;
@@ -88,6 +89,7 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			/// Summary: get a bounded area that will later be updated to the client
 			Box get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 );
+			BoxReadOnly get_readonly_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) const;
 
 			//////////////////////////////////////////////////////////////////////////
 			/// Summary: send all updated areas to client
