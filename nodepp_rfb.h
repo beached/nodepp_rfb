@@ -60,10 +60,7 @@ namespace daw {
 
 		class RFBServer {
 			std::unique_ptr<impl::RFBServerImpl> m_impl;
-		public:
-
-			
-
+		public:	
 			RFBServer( ) = delete;
 			RFBServer( RFBServer const & ) = delete;
 			RFBServer & operator=( RFBServer const & ) = delete;
@@ -85,7 +82,7 @@ namespace daw {
 			void on_client_clipboard_text( std::function<void( boost::string_ref text )> callback );
 
 			void send_clipboard_text( boost::string_ref text );
-
+			void send_bell( );
 			//////////////////////////////////////////////////////////////////////////
 			/// Summary: get a bounded area that will later be updated to the client
 			Box get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 );

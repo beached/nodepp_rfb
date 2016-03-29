@@ -52,7 +52,20 @@ namespace daw {
 				std::vector<uint8_t> m_buffer;
 				std::vector<Update> m_updates;
 				daw::nodepp::lib::net::NetServer m_server;
-				std::list<daw::nodepp::lib::net::NetSocketStream> m_connections;
+
+				void setup_callbacks( ) {
+					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
+						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer, false ) {
+							socket->write_async( *buffer );
+						} );
+						socket->emitter( )->on( "close", [callback_id, &]( ) {
+							m_server->emitter( )->remove_listener( "send_buffer", callback_id );
+						} );
+
+						socket << "RFB 003.003\n";
+					} );
+				}
+
 			public:
 				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
 					m_width{ width },
@@ -60,8 +73,7 @@ namespace daw {
 					m_bit_depth{ bit_depth },
 					m_buffer( static_cast<size_t>(width*height*bit_depth), 0 ),
 					m_updates( ),
-					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ),
-					m_connections( ) {
+					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ) {
 				}
 				
 				uint16_t width( ) const {
@@ -116,6 +128,10 @@ namespace daw {
 				static void append( T & destination, U const & source ) {
 					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
 				}
+
+				void send_all( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+					m_server->emitter( )->emit( "send_buffer", buffer );
+				}
 				
 			public:
 				void update( ) {
@@ -130,11 +146,38 @@ namespace daw {
 							append( *buffer, daw::range::make_range( m_buffer.begin( ) + (u.y*m_width) + u.x, m_buffer.begin( ) + ((u.y + u.height)*m_width) + u.x + u.width ) );
 						}
 					} );
-					impl::process_all( m_connections, [buffer]( daw::nodepp::lib::net::NetSocketStream & socket ) {
-						socket->write_async( *buffer );
-					} );
-
+					send_all( buffer );
 				}
+
+				void on_key_event( std::function<void( bool key_down, uint32_t key )> callback ) {
+					m_server->emitter( )->on( "on_key_event", std::move( callback ) );
+				}
+
+				void on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback ) {
+					m_server->emitter( )->on( "on_pointer_event", std::move( callback ) );
+				}
+				void on_client_clipboard_text( std::function<void( boost::string_ref text )> callback ) {
+					m_server->emitter( )->on( "on_clipboard_text", std::move( callback ) );
+				}
+
+				void send_clipboard_text( boost::string_ref text ) {
+					assert( text.size( ) <= std::numeric_limits<uint32_t>::max( ) );
+					auto buffer = std::make_shared<daw::nodepp::base::data_t>( );
+					buffer->push_back( 0 );	// Message Type, ServerCutText
+					buffer->push_back( 0 );	// Padding
+					buffer->push_back( 0 );	// Padding
+					buffer->push_back( 0 );	// Padding
+					
+					append( *buffer, to_bytes( static_cast<uint32_t>(text.size( )) ) );
+					append( *buffer, text );
+					send_all( buffer );
+				}
+
+				void send_bell( ) {
+					auto buffer = std::make_shared<daw::nodepp::base::data_t>( 1, 2 );
+					send_all( buffer );
+				}
+
 			};	// class RFBServerImpl
 		}	// namespace impl
 		namespace {
@@ -145,7 +188,6 @@ namespace daw {
 
 		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ):
 			m_impl( std::make_unique<impl::RFBServerImpl>( width, height, get_bit_depth( depth ), std::move( emitter ) ) ) {
-
 		}
 
 		RFBServer::~RFBServer( ) { }	// Empty but cannot use default.  The destructor on std::unique_ptr needs to know the full info for RFBServerImpl
@@ -176,12 +218,23 @@ namespace daw {
 		}
 
 		void RFBServer::on_key_event( std::function<void( bool key_down, uint32_t key )> callback ) {
+			m_impl->on_key_event( std::move( callback ) );
 		}
 
 		void RFBServer::on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback ) {
+			m_impl->on_pointer_event( std::move( callback ) );
 		}
 
 		void RFBServer::on_client_clipboard_text( std::function<void( boost::string_ref text )> callback ) {
+			m_impl->on_client_clipboard_text( std::move( callback ) );
+		}
+
+		void RFBServer::send_clipboard_text( boost::string_ref text ) {
+			m_impl->send_clipboard_text( text );
+		}
+
+		void RFBServer::send_bell( ) {
+			m_impl->send_bell( );
 		}
 
 		Box RFBServer::get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) {
