@@ -49,17 +49,17 @@ int main( int, char ** ) {
 
 	server.listen( 1234 );
 	while( true ) {
-		auto x = dist_x( gen );
-		auto y = dist_y( gen );
-		auto width = 20;
-		auto height = 20;
+		auto x = static_cast<uint16_t>(dist_x( gen ));
+		auto y = static_cast<uint16_t>(dist_y( gen ));
+		uint16_t width = 20;
+		uint16_t height = 20;
 		if( x + width >= server.width( ) ) {
 			width = (server.width( ) - x) - 1;
 		}
 		if( y + height >= server.height( ) ) {
 			height = (server.height( ) - y) - 1;
 		}
-		draw_rectagle( server, x, y, x + width, y + height, { static_cast<uint8_t>(dist_c( gen )), static_cast<uint8_t>(dist_c( gen )), static_cast<uint8_t>(dist_c( gen )) } );
+		draw_rectagle( server, x, y, x + width, y + height, { static_cast<uint8_t>(dist_c( gen )), static_cast<uint8_t>(dist_c( gen )), static_cast<uint8_t>(dist_c( gen )), 0 } );
 		std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
 	}
 	return EXIT_SUCCESS;
