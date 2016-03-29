@@ -45,6 +45,26 @@ namespace daw {
 				uint16_t height;
 			};	// struct Update
 
+			struct ServerInitialisation {
+				uint16_t width;
+				uint16_t height;
+				struct {
+					uint8_t bpp;
+					uint8_t depth;
+					uint8_t big_endian_flag;
+					uint8_t true_colour_flag;
+					uint16_t red_max;
+					uint16_t green_max;
+					uint16_t blue_max;
+					uint16_t red_shift;
+					uint16_t green_shift;
+					uint16_t blue_shift;
+					uint8_t padding[3];
+				} pixel_format;
+				// Send name length/name after
+
+			};	// struct ServerInitialisation
+
 			class RFBServerImpl { 
 				uint16_t m_width;
 				uint16_t m_height;
@@ -53,19 +73,80 @@ namespace daw {
 				std::vector<Update> m_updates;
 				daw::nodepp::lib::net::NetServer m_server;
 
+				template<typename T>
+				static std::vector<unsigned char> to_bytes( T const & value ) {
+					auto const N = sizeof( T );
+					std::vector<unsigned char> result( N );
+					*(reinterpret_cast<T *>(result.data( ))) = value;
+					return result;
+				}
+
+				template<typename T, typename U>
+				static void append( T & destination, U const & source ) {
+					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
+				}
+
+				template<typename T>
+				static void append( T & destination, std::string const & source ) {
+					append( destination, to_bytes( source.size( ) ) );
+					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
+				}
+
+				template<typename T>
+				static void append( T & destination, boost::string_ref source ) {
+					append( destination, to_bytes( source.size( ) ) );
+					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
+				}
+
+
+				void send_all( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+					m_server->emitter( )->emit( "send_buffer", buffer );
+				}
+
 				void setup_callbacks( ) {
 					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
 						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
 							socket->write_async( *buffer );
 						} );
-						socket->emitter( )->on( "close", [callback_id, this]( ) {
-							this->m_server->emitter( )->remove_listener( "send_buffer", callback_id );
+						m_server->emitter( )->on( "close_all", [callback_id, socket]( int64_t current_callback_id ) mutable {
+							if( callback_id != current_callback_id ) {
+								socket->close( );
+							}
 						} );
+						socket->emitter( )->on( "close", [&, callback_id]( ) {
+							m_server->emitter( )->remove_listener( "send_buffer", callback_id );
+						} );
+						socket->on_next_data_received( [socket, this, callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
+							assert( data_buffer );
+							std::string const expected_msg = "RFB 003.003\n";
+							auto const are_equal = std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) );
+							auto msg = std::make_shared<daw::nodepp::base::data_t>( );
+							if( !are_equal ) {
+								append( *msg, to_bytes( static_cast<uint32_t>(0) ) );	// Authentication Scheme 0, Connection Failed
+								std::string const err_msg = "Unsupported version, only 3.3 is supported";
+								append( *msg, err_msg );
+								socket->close( );
+								return;
+							}
+							// TODO implement auth
+							append( *msg, to_bytes( static_cast<uint32_t>(1) ) );	// Authentication Scheme 1, No Auth
 
+							socket->on_next_data_received( [socket, this, callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
+								// Client Initialization Message expected, data buffer should have 1 value
+								assert( data_buffer );
+								if( data_buffer->size( ) != 1 ) {
+									socket->close( );	// Should only be 1 byte
+								}
+								auto const is_shared = data_buffer->front( ) != 0;
+								if( !is_shared ) {
+									this->m_server->emitter( )->emit( "close_all", callback_id );
+								}
+								socket->
+							} );
+						} );
 						socket << "RFB 003.003\n";
 					} );
 				}
-
 			public:
 				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
 					m_width{ width },
@@ -114,24 +195,6 @@ namespace daw {
 					}
 					return result;
 				}
-
-			private:
-				template<typename T>
-				static std::vector<unsigned char> to_bytes( T const & value ) {
-					auto const N = sizeof( T );
-					std::vector<unsigned char> result( N );
-					*(reinterpret_cast<T *>(result.data( ))) = value;
-					return result;
-				}
-
-				template<typename T, typename U>
-				static void append( T & destination, U const & source ) {
-					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
-				}
-
-				void send_all( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
-					m_server->emitter( )->emit( "send_buffer", buffer );
-				}
 				
 			public:
 				void update( ) {
@@ -168,8 +231,8 @@ namespace daw {
 					buffer->push_back( 0 );	// Padding
 					buffer->push_back( 0 );	// Padding
 					
-					append( *buffer, to_bytes( static_cast<uint32_t>(text.size( )) ) );
 					append( *buffer, text );
+
 					send_all( buffer );
 				}
 
