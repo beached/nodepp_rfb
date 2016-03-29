@@ -59,7 +59,7 @@ namespace daw {
 
 					auto const width = x2 - x1;
 					for( size_t n = y1; n < y2; ++n ) {
-						auto p1 = m_buffer.begin( ) + (m_width*n) + x1;
+						auto p1 = m_buffer.data( ) + (m_width*n) + x1;
 						auto rng = daw::range::make_range( p1, p1 + width );
 						result.push_back( rng );
 					}
