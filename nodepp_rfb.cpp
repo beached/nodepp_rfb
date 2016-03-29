@@ -127,28 +127,28 @@ namespace daw {
 					m_server->emitter( )->emit( "send_buffer", buffer );
 				}
 
-				bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, uint64_t callback_id ) {
-					auto result = validate_fixed_buffer( data_buffer, 1 );
-					if( result ) {
-						auto const is_shared = data_buffer->front( ) != 0;
-						if( !is_shared ) {
-							this->m_server->emitter( )->emit( "close_all", callback_id );
+					bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, int64_t callback_id ) {
+						auto result = validate_fixed_buffer( data_buffer, 1 );
+						if( result ) {
+							auto const is_shared = data_buffer->front( ) != 0;
+							if( !is_shared ) {
+								this->m_server->emitter( )->emit( "close_all", callback_id );
+							}
 						}
+						return result;
 					}
-					return result;
-				}
-				
-				void setup_callbacks( ) {
-					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
-						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
-						// can be sent to all clients
-						auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
-							socket->write_async( *buffer );
-						} );
+					
+					void setup_callbacks( ) {
+						m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
+							// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
+							// can be sent to all clients
+							auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+								socket->write_async( *buffer );
+							} );
 
-						// The close_all callback will close all vnc sessions but the one specified.  This is used when
-						// a client connects and requests that no other clients share the session
-						auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
+							// The close_all callback will close all vnc sessions but the one specified.  This is used when
+							// a client connects and requests that no other clients share the session
+							auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
 							if( send_buffer_callback_id != current_callback_id ) {
 								socket->close( );
 							}
