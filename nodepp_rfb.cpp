@@ -178,9 +178,9 @@ namespace daw {
 										return;
 									}
 									send_server_initialization_msg( socket );
-									socket->on_data_received( [socket, this] {
+/*									socket->on_data_received( [socket, this](  {
 
-									} );
+									} );*/
 									socket->read_async( );
 								} );
 								socket->read_async( );
