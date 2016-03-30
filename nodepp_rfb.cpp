@@ -237,7 +237,7 @@ namespace daw {
 					m_bit_depth{ bit_depth },
 					m_buffer( static_cast<size_t>(width*height*(bit_depth == 8 ? 1 : bit_depth == 16 ? 2 : 4)), 0 ),
 					m_updates( ),
-					m_server( daw::nodepp::lib::net::create_net_server( std::move( emitter ) ) ),
+					m_server( daw::nodepp::lib::net::create_net_server( boost::asio::ssl::context::tlsv12_server, std::move( emitter ) ) ),
 					m_service_thread( ) {
 					setup_callbacks( );
 				}
