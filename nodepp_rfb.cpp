@@ -27,63 +27,93 @@
 #include "lib_net_server.h"
 
 
-namespace daw { 
+namespace daw {
 	namespace rfb {
-		namespace {
-			constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) {
-				return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
-			}
-		}	// namespace anonymous
-
 		namespace impl {
-			template<typename Collection, typename Func>
-			void process_all( Collection & values, Func f ) {
-				while( !values.empty( ) ) {
-					f( values.back( ) );
-					values.pop_back( );
+			namespace {
+				constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) {
+					return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
 				}
-			}
 
-			struct Update {
-				uint16_t x;
-				uint16_t y;
-				uint16_t width;
-				uint16_t height;
-			};	// struct Update
+				template<typename Collection, typename Func>
+				void process_all( Collection & values, Func f ) {
+					while( !values.empty( ) ) {
+						f( values.back( ) );
+						values.pop_back( );
+					}
+				}
 
-			struct ServerInitialisation {
-				uint16_t width;
-				uint16_t height;
-				struct {
-					uint8_t bpp;
-					uint8_t depth;
-					uint8_t big_endian_flag;
-					uint8_t true_colour_flag;
-					uint16_t red_max;
-					uint16_t green_max;
-					uint16_t blue_max;
-					uint16_t red_shift;
-					uint16_t green_shift;
-					uint16_t blue_shift;
-					uint8_t padding[3];
-				} pixel_format;
-				// Send name length/name after
+				struct Update {
+					uint16_t x;
+					uint16_t y;
+					uint16_t width;
+					uint16_t height;
+				};	// struct Update
 
-			};	// struct ServerInitialisation
-			ServerInitialisation create_server_initialization_message( uint16_t width, uint16_t height, uint8_t depth ) {
-				ServerInitialisation result;
-				memset( &result, 0, sizeof( ServerInitialisation ) );
-				result.width = width;
-				result.height = height;
-				result.pixel_format.bpp = depth;
-				result.pixel_format.depth = depth;
-				result.pixel_format.true_colour_flag = true;
-				result.pixel_format.red_max = 255;
-				result.pixel_format.blue_max = 255;
-				result.pixel_format.green_max = 255;
-				return result;
-			}
-			class RFBServerImpl { 
+				struct ServerInitialisationMsg {
+					uint16_t width;
+					uint16_t height;
+					struct {
+						uint8_t bpp;
+						uint8_t depth;
+						uint8_t big_endian_flag;
+						uint8_t true_colour_flag;
+						uint16_t red_max;
+						uint16_t green_max;
+						uint16_t blue_max;
+						uint16_t red_shift;
+						uint16_t green_shift;
+						uint16_t blue_shift;
+						uint8_t padding[3];
+					} pixel_format;
+					// Send name length/name after
+
+				};	// struct ServerInitialisation
+
+				struct ClientFrameBufferUpdateRequestMsg {
+					uint8_t message_type;	// Always 3
+					uint8_t incremental;
+					uint16_t x;
+					uint16_t y;
+					uint16_t width;
+					uint16_t height;
+				};	// struct FramebufferUpdateRequest
+
+				struct ClientKeyEventMsg {
+					uint8_t message_type;	// Always 4
+					uint8_t down_flag;
+					uint16_t padding;
+					uint32_t key;
+				};	// struct ClientKeyEventMsg
+
+				struct ClientPointerEventMsg {
+					uint8_t message_type;	// Always 5
+					uint8_t button_mask;
+					uint16_t x;
+					uint16_t y;
+				};	// struct ClientPointerEventMsg
+
+				ServerInitialisationMsg create_server_initialization_message( uint16_t width, uint16_t height, uint8_t depth ) {
+					ServerInitialisationMsg result;
+					memset( &result, 0, sizeof( ServerInitialisationMsg ) );
+					result.width = width;
+					result.height = height;
+					result.pixel_format.bpp = depth;
+					result.pixel_format.depth = depth;
+					result.pixel_format.true_colour_flag = true;
+					result.pixel_format.red_max = 255;
+					result.pixel_format.blue_max = 255;
+					result.pixel_format.green_max = 255;
+					return result;
+				}
+
+				ButtonMask create_button_mask( uint8_t mask ) {
+					return *(reinterpret_cast<ButtonMask *>(&mask));
+				}
+
+			}	// namespace anonumous
+
+			class RFBServerImpl final {
 				uint16_t m_width;
 				uint16_t m_height;
 				uint8_t m_bit_depth;
@@ -98,6 +128,12 @@ namespace daw {
 					std::vector<unsigned char> result( N );
 					*(reinterpret_cast<T *>(result.data( ))) = value;
 					return result;
+				}
+
+				template<typename T>
+				static T from_buffer_to_value( std::shared_ptr<daw::nodepp::base::data_t> const & buffer ) {
+					assert( sizeof( T ) <= buffer->size( ) );
+					return *(reinterpret_cast<T*>(buffer->data( )));
 				}
 
 				template<typename T, typename U>
@@ -127,28 +163,28 @@ namespace daw {
 					m_server->emitter( )->emit( "send_buffer", buffer );
 				}
 
-					bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, int64_t callback_id ) {
-						auto result = validate_fixed_buffer( data_buffer, 1 );
-						if( result ) {
-							auto const is_shared = data_buffer->front( ) != 0;
-							if( !is_shared ) {
-								this->m_server->emitter( )->emit( "close_all", callback_id );
-							}
+				bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, int64_t callback_id ) {
+					auto result = validate_fixed_buffer( data_buffer, 1 );
+					if( result ) {
+						auto const is_shared = data_buffer->front( ) != 0;
+						if( !is_shared ) {
+							this->m_server->emitter( )->emit( "close_all", callback_id );
 						}
-						return result;
 					}
-					
-					void setup_callbacks( ) {
-						m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
-							// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
-							// can be sent to all clients
-							auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
-								socket->write_async( *buffer );
-							} );
+					return result;
+				}
 
-							// The close_all callback will close all vnc sessions but the one specified.  This is used when
-							// a client connects and requests that no other clients share the session
-							auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
+				void setup_callbacks( ) {
+					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
+						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
+						// can be sent to all clients
+						auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+							socket->write_async( *buffer );
+						} );
+
+						// The close_all callback will close all vnc sessions but the one specified.  This is used when
+						// a client connects and requests that no other clients share the session
+						auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
 							if( send_buffer_callback_id != current_callback_id ) {
 								socket->close( );
 							}
@@ -162,8 +198,8 @@ namespace daw {
 
 						send_server_version_msg( socket );
 						// We have sent the server version, now validate client version
-						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
-							if( !revc_client_version_msg( socket, data_buffer ) ) {
+						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
+							if( !revc_client_version_msg( socket, buffer1 ) ) {
 								socket->close( );
 								return;
 							}
@@ -172,19 +208,73 @@ namespace daw {
 								// We need to authenticate the client
 							} else {
 								// No authentication needed for client
-								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer, bool ) mutable {
+								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer2, bool ) mutable {
 									// Client Initialization Message expected, data buffer should have 1 value
-									if( !recv_client_initialization_msg( socket, buffer, send_buffer_callback_id ) ) {
+									if( !recv_client_initialization_msg( socket, buffer2, send_buffer_callback_id ) ) {
 										socket->close( );
 										return;
 									}
 									send_server_initialization_msg( socket );
-/*									socket->on_data_received( [socket, this](  {
-
-									} );*/
-									socket->read_async( );
+									socket->on_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
+										// Main Receive Loop
+										if( !buffer3 && buffer3->size( ) < 1 ) {
+											socket->close( );
+											return;
+										}
+										auto const & message_type = buffer3->front( );
+										switch( message_type ) {
+										case 0:	// SetPixelFormat
+											break;
+										case 1:	// FixColourMapEntries
+											break;
+										case 2:	// SetEncodings
+											break;
+										case 3:
+										{	// FramebufferUpdateRequest
+											if( buffer3->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
+												socket->close( );
+											}
+											auto req = from_buffer_to_value<ClientFrameBufferUpdateRequestMsg>( buffer3 );
+											add_update_request( req.x, req.y, req.width, req.height );
+											update( );
+										}
+										break;
+										case 4:
+										{ // KeyEvent
+											if( buffer3->size( ) < sizeof( ClientKeyEventMsg ) ) {
+												socket->close( );
+											}
+											auto req = from_buffer_to_value<ClientKeyEventMsg>( buffer3 );
+											emit_key_event( req.down_flag, req.key );
+										}
+										break;
+										case 5:
+										{	// PointerEvent
+											if( buffer3->size( ) < sizeof( ClientPointerEventMsg ) ) {
+												socket->close( );
+											}
+											auto req = from_buffer_to_value<ClientPointerEventMsg >( buffer3 );
+											emit_pointer_event( create_button_mask( req.button_mask ), req.x, req.y );
+										}
+										break;
+										case 6:
+										{	// ClientCutText
+											if( buffer3->size( ) < 8 ) {
+												socket->close( );
+											}
+											auto len = *(reinterpret_cast<uint32_t *>(buffer3->data( ) + 4));
+											if( buffer3->size( ) < 8 + len ) {
+												// Verify buffer is long enough and we don't overflow
+												socket->close( );
+											}
+											boost::string_ref text { buffer3->data( ) + 8, len };
+											emit_client_clipboard_text( text );
+										}
+										break;
+										}
+										socket->read_async( );
+									} );
 								} );
-								socket->read_async( );
 							}
 							socket->read_async( );
 
@@ -201,10 +291,10 @@ namespace daw {
 					auto result = validate_fixed_buffer( data_buffer, 12 );
 
 					std::string const expected_msg = "RFB 003.003\n";
-					
+
 					auto const are_equal = std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) );
 					result &= are_equal;
-					
+
 					if( !are_equal ) {
 						auto msg = std::make_shared<daw::nodepp::base::data_t>( );
 						append( *msg, to_bytes( static_cast<uint32_t>(0) ) );	// Authentication Scheme 0, Connection Failed
@@ -232,22 +322,26 @@ namespace daw {
 
 			public:
 				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
-					m_width{ width },
-					m_height{ height },
-					m_bit_depth{ bit_depth },
+					m_width { width },
+					m_height { height },
+					m_bit_depth { bit_depth },
 					m_buffer( static_cast<size_t>(width*height*(bit_depth == 8 ? 1 : bit_depth == 16 ? 2 : 4)), 0 ),
 					m_updates( ),
-					m_server( daw::nodepp::lib::net::create_net_server( boost::asio::ssl::context::tlsv12_server, std::move( emitter ) ) ),
+					m_server( daw::nodepp::lib::net::create_net_server_nossl( std::move( emitter ) ) ),
 					m_service_thread( ) {
 					setup_callbacks( );
 				}
-				
+
 				uint16_t width( ) const {
 					return m_width;
 				}
 
 				uint16_t height( ) const {
 					return m_height;
+				}
+
+				void add_update_request( uint16_t x, uint16_t y, uint16_t width, uint16_t height ) {
+					m_updates.push_back( { x, y, width, height } );
 				}
 
 				Box get_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) {
@@ -262,7 +356,7 @@ namespace daw {
 						auto rng = daw::range::make_range( p1, p1 + width );
 						result.push_back( rng );
 					}
-					m_updates.push_back( { x1, y1, static_cast<uint16_t>(x2 - x1), static_cast<uint16_t>(y2 - y1) } );
+					add_update_request( x1, y1, static_cast<uint16_t>(x2 - x1), static_cast<uint16_t>(y2 - y1) );
 					return result;
 				}
 
@@ -280,14 +374,13 @@ namespace daw {
 					}
 					return result;
 				}
-				
-			public:
+
 				void update( ) {
 					auto buffer = std::make_shared<daw::nodepp::base::data_t>( );
 					buffer->push_back( 0 );	// Message Type, FrameBufferUpdate
 					buffer->push_back( 0 );	// Padding
 					append( *buffer, to_bytes( static_cast<uint16_t>(m_updates.size( )) ) );
-					impl::process_all( m_updates, [&]( auto const & u ) {						
+					impl::process_all( m_updates, [&]( auto const & u ) {
 						append( *buffer, to_bytes( u ) );
 						buffer->push_back( 0 );	// Encoding type RAW
 						for( size_t row = u.y; row < u.y + u.height; ++row ) {
@@ -301,11 +394,24 @@ namespace daw {
 					m_server->emitter( )->on( "on_key_event", std::move( callback ) );
 				}
 
+				void emit_key_event( bool key_down, uint32_t key ) {
+					m_server->emitter( )->emit( "on_key_event", key_down, key );
+				}
+
 				void on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback ) {
 					m_server->emitter( )->on( "on_pointer_event", std::move( callback ) );
 				}
+
+				void emit_pointer_event( ButtonMask buttons, uint16_t x_position, uint16_t y_position ) {
+					m_server->emitter( )->emit( "on_pointer_event", buttons, x_position, y_position );
+				}
+
 				void on_client_clipboard_text( std::function<void( boost::string_ref text )> callback ) {
 					m_server->emitter( )->on( "on_clipboard_text", std::move( callback ) );
+				}
+
+				void emit_client_clipboard_text( boost::string_ref text ) {
+					m_server->emitter( )->emit( "on_clipboard_text", text );
 				}
 
 				void send_clipboard_text( boost::string_ref text ) {
@@ -315,7 +421,7 @@ namespace daw {
 					buffer->push_back( 0 );	// Padding
 					buffer->push_back( 0 );	// Padding
 					buffer->push_back( 0 );	// Padding
-					
+
 					append( *buffer, text );
 
 					send_all( buffer );
@@ -328,9 +434,9 @@ namespace daw {
 
 				void listen( uint16_t port ) {
 					m_server->listen( port );
-					m_service_thread = std::thread( []( ) {
-						daw::nodepp::base::start_service( daw::nodepp::base::StartServiceMode::Single );
-					} );
+					//m_service_thread = std::thread( []( ) {
+					daw::nodepp::base::start_service( daw::nodepp::base::StartServiceMode::Single );
+					//} );
 				}
 
 				void close( ) {
@@ -342,13 +448,12 @@ namespace daw {
 		}	// namespace impl
 
 		RFBServer::RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter ):
-			m_impl( std::make_unique<impl::RFBServerImpl>( width, height, get_bit_depth( depth ), std::move( emitter ) ) ) {
-		}
+			m_impl( std::make_unique<impl::RFBServerImpl>( width, height, impl::get_bit_depth( depth ), std::move( emitter ) ) ) { }
 
 		RFBServer::~RFBServer( ) { }	// Empty but cannot use default.  The destructor on std::unique_ptr needs to know the full info for RFBServerImpl
 
 		RFBServer::RFBServer( RFBServer && other ): m_impl( std::move( other.m_impl ) ) { }
-		
+
 		RFBServer & RFBServer::operator=( RFBServer && rhs ) {
 			if( this != &rhs ) {
 				m_impl = std::move( rhs.m_impl );
@@ -399,7 +504,7 @@ namespace daw {
 
 		BoxReadOnly RFBServer::get_readonly_area( uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2 ) const {
 			return m_impl->get_read_only_area( x1, y1, x2, y2 );
-		}		
+		}
 
 		void RFBServer::update( ) {
 			m_impl->update( );
