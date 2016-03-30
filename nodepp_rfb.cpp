@@ -171,9 +171,9 @@ namespace daw {
 								// We need to authenticate the client
 							} else {
 								// No authentication needed for client
-								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
+								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer, bool ) mutable {
 									// Client Initialization Message expected, data buffer should have 1 value
-									if( !recv_client_initialization_msg( socket, data_buffer, send_buffer_callback_id ) ) {
+									if( !recv_client_initialization_msg( socket, buffer, send_buffer_callback_id ) ) {
 										socket->close( );
 										return;
 									}

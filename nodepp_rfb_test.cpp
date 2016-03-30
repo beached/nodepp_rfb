@@ -29,7 +29,6 @@
 
 
 void draw_rectagle( daw::rfb::RFBServer & srv, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, daw::rfb::Colour colour ) {
-	uint32_t const c = (colour.red << 4) | (colour.green << 3) | (colour.blue << 2);
 	auto box = srv.get_area( x1, y1, x2, y2 );
 	for( auto & row : box ) {
 		auto r2 = daw::range::make_range( reinterpret_cast<daw::rfb::Colour *>(row.begin( )), reinterpret_cast<daw::rfb::Colour *>(row.end( )) );
