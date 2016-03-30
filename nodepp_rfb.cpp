@@ -70,12 +70,12 @@ namespace daw {
 				// Send name length/name after
 
 			};	// struct ServerInitialisation
-			ServerInitialisation create_server_initialization_message( uint16_t width, uint16_t height, BitDepth::values depth ) {
+			ServerInitialisation create_server_initialization_message( uint16_t width, uint16_t height, uint8_t depth ) {
 				ServerInitialisation result { 0 };
 				result.width = width;
 				result.height = height;
-				result.pixel_format.bpp = get_bit_depth( depth );
-				result.pixel_format.depth = get_bit_depth( depth );
+				result.pixel_format.bpp = depth;
+				result.pixel_format.depth = depth;
 				result.pixel_format.true_colour_flag = true;
 				result.pixel_format.red_max = 255;
 				result.pixel_format.blue_max = 255;
@@ -116,59 +116,119 @@ namespace daw {
 					std::copy( source.begin( ), source.end( ), std::back_inserter( destination ) );
 				}
 
-
+				bool validate_fixed_buffer( std::shared_ptr<daw::nodepp::base::data_t> & buffer, size_t size ) {
+					bool result = static_cast<bool>(buffer);
+					result &= buffer->size( ) == size;
+					return result;
+				}
 				void send_all( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+					assert( buffer );
 					m_server->emitter( )->emit( "send_buffer", buffer );
 				}
 
+				bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, uint64_t callback_id ) {
+					auto result = validate_fixed_buffer( data_buffer, 1 );
+					if( result ) {
+						auto const is_shared = data_buffer->front( ) != 0;
+						if( !is_shared ) {
+							this->m_server->emitter( )->emit( "close_all", callback_id );
+						}
+					}
+					return result;
+				}
+				
 				void setup_callbacks( ) {
 					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
-						auto callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
+						// can be sent to all clients
+						auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
 							socket->write_async( *buffer );
 						} );
-						m_server->emitter( )->on( "close_all", [callback_id, socket]( int64_t current_callback_id ) mutable {
-							if( callback_id != current_callback_id ) {
+
+						// The close_all callback will close all vnc sessions but the one specified.  This is used when
+						// a client connects and requests that no other clients share the session
+						auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
+							if( send_buffer_callback_id != current_callback_id ) {
 								socket->close( );
 							}
 						} );
-						socket->emitter( )->on( "close", [&, callback_id]( ) {
-							m_server->emitter( )->remove_listener( "send_buffer", callback_id );
+
+						// When socket is closed, remove registered callbacks in server
+						socket->emitter( )->on( "close", [&, send_buffer_callback_id, close_all_callback_id]( ) {
+							m_server->emitter( )->remove_listener( "send_buffer", send_buffer_callback_id );
+							m_server->emitter( )->remove_listener( "close_all", close_all_callback_id );
 						} );
-						socket->on_next_data_received( [socket, this, callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
-							assert( data_buffer );
-							std::string const expected_msg = "RFB 003.003\n";
-							auto const are_equal = std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) );
-							auto msg = std::make_shared<daw::nodepp::base::data_t>( );
-							if( !are_equal ) {
-								append( *msg, to_bytes( static_cast<uint32_t>(0) ) );	// Authentication Scheme 0, Connection Failed
-								std::string const err_msg = "Unsupported version, only 3.3 is supported";
-								append( *msg, err_msg );
+
+						// We have sent the server version, now validate client version
+						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
+							if( !revc_client_version_msg( socket, data_buffer ) ) {
 								socket->close( );
 								return;
 							}
-							// TODO implement auth
-							append( *msg, to_bytes( static_cast<uint32_t>(1) ) );	// Authentication Scheme 1, No Auth
+							// Now sent authentication message
+							if( send_authentication_msg( socket ) ) {
+								// We need to authenticate the client
+							} else {
+								// No authentication needed for client
+								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
+									// Client Initialization Message expected, data buffer should have 1 value
+									if( !recv_client_initialization_msg( socket, data_buffer, send_buffer_callback_id ) ) {
+										socket->close( );
+										return;
+									}
+									send_server_initialization_msg( socket );
+									socket->on_data_received( [socket, this] {
 
-							socket->on_next_data_received( [socket, this, callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
-								// Client Initialization Message expected, data buffer should have 1 value
-								assert( data_buffer );
-								if( data_buffer->size( ) != 1 ) {
-									socket->close( );	// Should only be 1 byte
-								}
-								auto const is_shared = data_buffer->front( ) != 0;
-								if( !is_shared ) {
-									this->m_server->emitter( )->emit( "close_all", callback_id );
-								}
-								auto msg = std::make_shared<daw::nodepp::base::data_t>( );
-								append( *msg, to_bytes( create_server_initialization_message( m_width, m_height, BitDepth::thirtytwo ) ) );
-								std::string const title = "Test RFB Service";
-								append( *msg, title );
-								socket->write_async( *msg );
-							} );
+									} );
+									socket->read_async( );
+								} );
+								socket->read_async( );
+							}
+							socket->read_async( );
+
 						} );
-						socket << "RFB 003.003\n";
+
 					} );
 				}
+
+				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+					socket << "RFB 003.003\n";
+					socket->read_async( );
+				}
+
+				bool revc_client_version_msg( daw::nodepp::lib::net::NetSocketStream socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer ) {
+					auto result = validate_fixed_buffer( data_buffer, 12 );
+
+					std::string const expected_msg = "RFB 003.003\n";
+					
+					auto const are_equal = std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) );
+					result &= are_equal;
+					
+					if( !are_equal ) {
+						auto msg = std::make_shared<daw::nodepp::base::data_t>( );
+						append( *msg, to_bytes( static_cast<uint32_t>(0) ) );	// Authentication Scheme 0, Connection Failed
+						std::string const err_msg = "Unsupported version, only 3.3 is supported";
+						append( *msg, err_msg );
+						socket->write_async( *msg );
+					}
+					return result;
+				}
+
+				void send_server_initialization_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+					auto msg = std::make_shared<daw::nodepp::base::data_t>( );
+					append( *msg, to_bytes( create_server_initialization_message( m_width, m_height, m_bit_depth ) ) );
+					append( *msg, boost::string_ref( "Test RFB Service" ) );	// Add title length and title values
+					socket->write_async( *msg );	// Send msg
+				}
+
+				bool send_authentication_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+					auto msg = std::make_shared<daw::nodepp::base::data_t>( );
+					append( *msg, to_bytes( static_cast<uint32_t>(1) ) );	// Authentication Scheme 1, No Auth
+					socket->write_async( *msg );
+					return false;	// TODO: VNC authentication.
+				}
+
+
 			public:
 				RFBServerImpl( uint16_t width, uint16_t height, uint8_t bit_depth, daw::nodepp::base::EventEmitter emitter ):
 					m_width{ width },
