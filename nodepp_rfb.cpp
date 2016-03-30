@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
+#include <thread>
 #include <vector>
 
 #include "nodepp_rfb.h"
@@ -71,7 +71,8 @@ namespace daw {
 
 			};	// struct ServerInitialisation
 			ServerInitialisation create_server_initialization_message( uint16_t width, uint16_t height, uint8_t depth ) {
-				ServerInitialisation result { 0 };
+				ServerInitialisation result;
+				memset( &result, 0, sizeof( ServerInitialisation ) );
 				result.width = width;
 				result.height = height;
 				result.pixel_format.bpp = depth;
