@@ -160,6 +160,7 @@ namespace daw {
 							m_server->emitter( )->remove_listener( "close_all", close_all_callback_id );
 						} );
 
+						send_server_version_msg( socket );
 						// We have sent the server version, now validate client version
 						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> data_buffer, bool ) mutable {
 							if( !revc_client_version_msg( socket, data_buffer ) ) {
@@ -188,13 +189,12 @@ namespace daw {
 							socket->read_async( );
 
 						} );
-
+						socket->read_async( );
 					} );
 				}
 
 				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
 					socket << "RFB 003.003\n";
-					socket->read_async( );
 				}
 
 				bool revc_client_version_msg( daw::nodepp::lib::net::NetSocketStream socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer ) {
