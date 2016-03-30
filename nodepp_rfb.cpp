@@ -118,7 +118,7 @@ namespace daw {
 				}
 
 				bool validate_fixed_buffer( std::shared_ptr<daw::nodepp::base::data_t> & buffer, size_t size ) {
-					bool result = static_cast<bool>(buffer);
+					auto result = static_cast<bool>(buffer);
 					result &= buffer->size( ) == size;
 					return result;
 				}
