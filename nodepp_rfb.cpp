@@ -196,91 +196,90 @@ namespace daw {
 							m_server->emitter( )->remove_listener( "close_all", close_all_callback_id );
 						} );
 
-						send_server_version_msg( socket );
 						// We have sent the server version, now validate client version
 						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
 							if( !revc_client_version_msg( socket, buffer1 ) ) {
 								socket->close( );
 								return;
 							}
-							// Now sent authentication message
-							if( send_authentication_msg( socket ) ) {
-								// We need to authenticate the client
-							} else {
-								// No authentication needed for client
-								socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer2, bool ) mutable {
-									// Client Initialization Message expected, data buffer should have 1 value
-									if( !recv_client_initialization_msg( socket, buffer2, send_buffer_callback_id ) ) {
+
+							// Authentication message is sent
+							socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer2, bool ) mutable {
+								// Client Initialization Message expected, data buffer should have 1 value
+								if( !recv_client_initialization_msg( socket, buffer2, send_buffer_callback_id ) ) {
+									socket->close( );
+									return;
+								}
+
+								// Server Initialization Sent, main reception loop
+								socket->on_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
+									// Main Receive Loop
+									if( !buffer3 && buffer3->size( ) < 1 ) {
 										socket->close( );
 										return;
 									}
-									send_server_initialization_msg( socket );
-									socket->on_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
-										// Main Receive Loop
-										if( !buffer3 && buffer3->size( ) < 1 ) {
+									auto const & message_type = buffer3->front( );
+									switch( message_type ) {
+									case 0:	// SetPixelFormat
+										break;
+									case 1:	// FixColourMapEntries
+										break;
+									case 2:	// SetEncodings
+										break;
+									case 3:
+									{	// FramebufferUpdateRequest
+										if( buffer3->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
 											socket->close( );
-											return;
 										}
-										auto const & message_type = buffer3->front( );
-										switch( message_type ) {
-										case 0:	// SetPixelFormat
-											break;
-										case 1:	// FixColourMapEntries
-											break;
-										case 2:	// SetEncodings
-											break;
-										case 3:
-										{	// FramebufferUpdateRequest
-											if( buffer3->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
-												socket->close( );
-											}
-											auto req = from_buffer_to_value<ClientFrameBufferUpdateRequestMsg>( buffer3 );
-											add_update_request( req.x, req.y, req.width, req.height );
-											update( );
+										auto req = from_buffer_to_value<ClientFrameBufferUpdateRequestMsg>( buffer3 );
+										add_update_request( req.x, req.y, req.width, req.height );
+										update( );
+									}
+									break;
+									case 4:
+									{ // KeyEvent
+										if( buffer3->size( ) < sizeof( ClientKeyEventMsg ) ) {
+											socket->close( );
 										}
-										break;
-										case 4:
-										{ // KeyEvent
-											if( buffer3->size( ) < sizeof( ClientKeyEventMsg ) ) {
-												socket->close( );
-											}
-											auto req = from_buffer_to_value<ClientKeyEventMsg>( buffer3 );
-											emit_key_event( req.down_flag, req.key );
+										auto req = from_buffer_to_value<ClientKeyEventMsg>( buffer3 );
+										emit_key_event( req.down_flag, req.key );
+									}
+									break;
+									case 5:
+									{	// PointerEvent
+										if( buffer3->size( ) < sizeof( ClientPointerEventMsg ) ) {
+											socket->close( );
 										}
-										break;
-										case 5:
-										{	// PointerEvent
-											if( buffer3->size( ) < sizeof( ClientPointerEventMsg ) ) {
-												socket->close( );
-											}
-											auto req = from_buffer_to_value<ClientPointerEventMsg >( buffer3 );
-											emit_pointer_event( create_button_mask( req.button_mask ), req.x, req.y );
+										auto req = from_buffer_to_value<ClientPointerEventMsg >( buffer3 );
+										emit_pointer_event( create_button_mask( req.button_mask ), req.x, req.y );
+									}
+									break;
+									case 6:
+									{	// ClientCutText
+										if( buffer3->size( ) < 8 ) {
+											socket->close( );
 										}
-										break;
-										case 6:
-										{	// ClientCutText
-											if( buffer3->size( ) < 8 ) {
-												socket->close( );
-											}
-											auto len = *(reinterpret_cast<uint32_t *>(buffer3->data( ) + 4));
-											if( buffer3->size( ) < 8 + len ) {
-												// Verify buffer is long enough and we don't overflow
-												socket->close( );
-											}
-											boost::string_ref text { buffer3->data( ) + 8, len };
-											emit_client_clipboard_text( text );
+										auto len = *(reinterpret_cast<uint32_t *>(buffer3->data( ) + 4));
+										if( buffer3->size( ) < 8 + len ) {
+											// Verify buffer is long enough and we don't overflow
+											socket->close( );
 										}
-										break;
-										}
-										socket->read_async( );
-									} );
+										boost::string_ref text { buffer3->data( ) + 8, len };
+										emit_client_clipboard_text( text );
+									}
+									break;
+									}
 								} );
-							}
+								send_server_initialization_msg( socket );
+								socket->read_async( );
+							} );
+							send_authentication_msg( socket );
 							socket->read_async( );
-
 						} );
+						send_server_version_msg( socket );
 						socket->read_async( );
 					} );
+
 				}
 
 				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
@@ -312,11 +311,10 @@ namespace daw {
 					socket->write_async( *msg );	// Send msg
 				}
 
-				bool send_authentication_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+				void send_authentication_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
 					auto msg = std::make_shared<daw::nodepp::base::data_t>( );
 					append( *msg, to_bytes( static_cast<uint32_t>(1) ) );	// Authentication Scheme 1, No Auth
 					socket->write_async( *msg );
-					return false;	// TODO: VNC authentication.
 				}
 
 
