@@ -20,11 +20,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <iostream>
 #include <thread>
 #include <vector>
 
 #include "nodepp_rfb.h"
 #include "lib_net_server.h"
+#include "rfb_messages.h"
 
 
 namespace daw {
@@ -50,49 +52,6 @@ namespace daw {
 					uint16_t height;
 				};	// struct Update
 
-				struct ServerInitialisationMsg {
-					uint16_t width;
-					uint16_t height;
-					struct {
-						uint8_t bpp;
-						uint8_t depth;
-						uint8_t big_endian_flag;
-						uint8_t true_colour_flag;
-						uint16_t red_max;
-						uint16_t green_max;
-						uint16_t blue_max;
-						uint16_t red_shift;
-						uint16_t green_shift;
-						uint16_t blue_shift;
-						uint8_t padding[3];
-					} pixel_format;
-					// Send name length/name after
-
-				};	// struct ServerInitialisation
-
-				struct ClientFrameBufferUpdateRequestMsg {
-					uint8_t message_type;	// Always 3
-					uint8_t incremental;
-					uint16_t x;
-					uint16_t y;
-					uint16_t width;
-					uint16_t height;
-				};	// struct FramebufferUpdateRequest
-
-				struct ClientKeyEventMsg {
-					uint8_t message_type;	// Always 4
-					uint8_t down_flag;
-					uint16_t padding;
-					uint32_t key;
-				};	// struct ClientKeyEventMsg
-
-				struct ClientPointerEventMsg {
-					uint8_t message_type;	// Always 5
-					uint8_t button_mask;
-					uint16_t x;
-					uint16_t y;
-				};	// struct ClientPointerEventMsg
-
 				ServerInitialisationMsg create_server_initialization_message( uint16_t width, uint16_t height, uint8_t depth ) {
 					ServerInitialisationMsg result;
 					memset( &result, 0, sizeof( ServerInitialisationMsg ) );
@@ -111,29 +70,12 @@ namespace daw {
 					return *(reinterpret_cast<ButtonMask *>(&mask));
 				}
 
-			}	// namespace anonumous
-
-			class RFBServerImpl final {
-				uint16_t m_width;
-				uint16_t m_height;
-				uint8_t m_bit_depth;
-				std::vector<uint8_t> m_buffer;
-				std::vector<Update> m_updates;
-				daw::nodepp::lib::net::NetServer m_server;
-				std::thread m_service_thread;
-
 				template<typename T>
 				static std::vector<unsigned char> to_bytes( T const & value ) {
 					auto const N = sizeof( T );
 					std::vector<unsigned char> result( N );
 					*(reinterpret_cast<T *>(result.data( ))) = value;
 					return result;
-				}
-
-				template<typename T>
-				static T from_buffer_to_value( std::shared_ptr<daw::nodepp::base::data_t> const & buffer ) {
-					assert( sizeof( T ) <= buffer->size( ) );
-					return *(reinterpret_cast<T*>(buffer->data( )));
 				}
 
 				template<typename T, typename U>
@@ -158,6 +100,18 @@ namespace daw {
 					result &= buffer->size( ) == size;
 					return result;
 				}
+			}	// namespace anonymous
+
+			class RFBServerImpl final {
+				uint16_t m_width;
+				uint16_t m_height;
+				uint8_t m_bit_depth;
+				std::vector<uint8_t> m_buffer;
+				std::vector<Update> m_updates;
+				daw::nodepp::lib::net::NetServer m_server;
+				std::thread m_service_thread;
+
+				
 				void send_all( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
 					assert( buffer );
 					m_server->emitter( )->emit( "send_buffer", buffer );
@@ -176,6 +130,7 @@ namespace daw {
 
 				void setup_callbacks( ) {
 					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
+						std::cout << "Connection from: " << socket->remote_address( ) << ":" << socket->remote_port( ) << std::endl;
 						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
 						// can be sent to all clients
 						auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
@@ -214,61 +169,9 @@ namespace daw {
 								// Server Initialization Sent, main reception loop
 								socket->on_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
 									// Main Receive Loop
-									if( !buffer3 && buffer3->size( ) < 1 ) {
-										socket->close( );
-										return;
-									}
-									auto const & message_type = buffer3->front( );
-									switch( message_type ) {
-									case 0:	// SetPixelFormat
-										break;
-									case 1:	// FixColourMapEntries
-										break;
-									case 2:	// SetEncodings
-										break;
-									case 3:
-									{	// FramebufferUpdateRequest
-										if( buffer3->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
-											socket->close( );
-										}
-										auto req = from_buffer_to_value<ClientFrameBufferUpdateRequestMsg>( buffer3 );
-										add_update_request( req.x, req.y, req.width, req.height );
-										update( );
-									}
-									break;
-									case 4:
-									{ // KeyEvent
-										if( buffer3->size( ) < sizeof( ClientKeyEventMsg ) ) {
-											socket->close( );
-										}
-										auto req = from_buffer_to_value<ClientKeyEventMsg>( buffer3 );
-										emit_key_event( req.down_flag, req.key );
-									}
-									break;
-									case 5:
-									{	// PointerEvent
-										if( buffer3->size( ) < sizeof( ClientPointerEventMsg ) ) {
-											socket->close( );
-										}
-										auto req = from_buffer_to_value<ClientPointerEventMsg >( buffer3 );
-										emit_pointer_event( create_button_mask( req.button_mask ), req.x, req.y );
-									}
-									break;
-									case 6:
-									{	// ClientCutText
-										if( buffer3->size( ) < 8 ) {
-											socket->close( );
-										}
-										auto len = *(reinterpret_cast<uint32_t *>(buffer3->data( ) + 4));
-										if( buffer3->size( ) < 8 + len ) {
-											// Verify buffer is long enough and we don't overflow
-											socket->close( );
-										}
-										boost::string_ref text { buffer3->data( ) + 8, len };
-										emit_client_clipboard_text( text );
-									}
-									break;
-									}
+									parse_client_msg( socket, buffer3 );
+									return;
+									socket->read_async( );
 								} );
 								send_server_initialization_msg( socket );
 								socket->read_async( );
@@ -280,6 +183,65 @@ namespace daw {
 						socket->read_async( );
 					} );
 
+				}
+
+				void parse_client_msg( daw::nodepp::lib::net::NetSocketStream socket, std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
+					if( !buffer && buffer->size( ) < 1 ) {
+						socket->close( );
+						return;
+					}
+					auto const & message_type = buffer->front( );
+					switch( message_type ) {
+					case 0:	// SetPixelFormat
+						break;
+					case 1:	// FixColourMapEntries
+						break;
+					case 2:	// SetEncodings
+						break;
+					case 3:
+					{	// FramebufferUpdateRequest
+						if( buffer->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
+							socket->close( );
+						}
+						auto req = nodepp::base::from_data_t_to_value<ClientFrameBufferUpdateRequestMsg>( *buffer );
+						add_update_request( req.x, req.y, req.width, req.height );
+						update( );
+					}
+					break;
+					case 4:
+					{ // KeyEvent
+						if( buffer->size( ) < sizeof( ClientKeyEventMsg ) ) {
+							socket->close( );
+						}
+						auto req = nodepp::base::from_data_t_to_value<ClientKeyEventMsg>( *buffer );
+						emit_key_event( static_cast<bool>(req.down_flag), req.key );
+					}
+					break;
+					case 5:
+					{	// PointerEvent
+						if( buffer->size( ) < sizeof( ClientPointerEventMsg ) ) {
+							socket->close( );
+						}
+						auto req = nodepp::base::from_data_t_to_value<ClientPointerEventMsg>( *buffer );
+						emit_pointer_event( create_button_mask( req.button_mask ), req.x, req.y );
+					}
+					break;
+					case 6:
+					{	// ClientCutText
+						if( buffer->size( ) < 8 ) {
+							socket->close( );
+						}
+						auto len = nodepp::base::from_data_t_to_value<uint32_t>( *buffer, 4 );
+						//auto len = *(reinterpret_cast<uint32_t *>(buffer->data( ) + 4));
+						if( buffer->size( ) < 8 + len ) {
+							// Verify buffer is long enough and we don't overflow
+							socket->close( );
+						}
+						boost::string_ref text { buffer->data( ) + 8, len };
+						emit_client_clipboard_text( text );
+					}
+					break;
+					}
 				}
 
 				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
@@ -435,7 +397,7 @@ namespace daw {
 					//m_service_thread = std::thread( []( ) {
 					daw::nodepp::base::start_service( daw::nodepp::base::StartServiceMode::Single );
 					//} );
-				}
+					}
 
 				void close( ) {
 					daw::nodepp::base::ServiceHandle::stop( );
