@@ -100,6 +100,12 @@ namespace daw {
 					result &= buffer->size( ) == size;
 					return result;
 				}
+
+				template<typename T>
+				bool as_bool( T const value ) {
+					static_assert(std::is_integral_v<T>, "Parameter to as_bool must be an Integral type");
+					return value != 0;
+				}
 			}	// namespace anonymous
 
 			class RFBServerImpl final {
@@ -118,14 +124,13 @@ namespace daw {
 				}
 
 				bool recv_client_initialization_msg( daw::nodepp::lib::net::NetSocketStream & socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer, int64_t callback_id ) {
-					auto result = validate_fixed_buffer( data_buffer, 1 );
-					if( result ) {
-						auto const is_shared = data_buffer->front( ) != 0;
-						if( !is_shared ) {
+					if( validate_fixed_buffer( data_buffer, 1 ) ) {
+						if( !as_bool( (*data_buffer)[0] ) ) {
 							this->m_server->emitter( )->emit( "close_all", callback_id );
 						}
+						return true;
 					}
-					return result;
+					return false;
 				}
 
 				void setup_callbacks( ) {
@@ -214,7 +219,7 @@ namespace daw {
 							socket->close( );
 						}
 						auto req = nodepp::base::from_data_t_to_value<ClientKeyEventMsg>( *buffer );
-						emit_key_event( static_cast<bool>(req.down_flag), req.key );
+						emit_key_event( as_bool( req.down_flag ), req.key );
 					}
 					break;
 					case 5:
@@ -253,10 +258,8 @@ namespace daw {
 
 					std::string const expected_msg = "RFB 003.003\n";
 
-					auto const are_equal = std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) );
-					result &= are_equal;
-
-					if( !are_equal ) {
+					if( !std::equal( expected_msg.begin( ), expected_msg.end( ), data_buffer->begin( ) ) ) {
+						result = false;
 						auto msg = std::make_shared<daw::nodepp::base::data_t>( );
 						append( *msg, to_bytes( static_cast<uint32_t>(0) ) );	// Authentication Scheme 0, Connection Failed
 						std::string const err_msg = "Unsupported version, only 3.3 is supported";
