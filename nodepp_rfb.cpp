@@ -38,7 +38,7 @@ namespace daw {
 				}
 
 				template<typename Collection, typename Func>
-				void process_all( Collection & values, Func f ) {
+				void process_all( Collection && values, Func f ) {
 					while( !values.empty( ) ) {
 						f( values.back( ) );
 						values.pop_back( );
@@ -134,30 +134,31 @@ namespace daw {
 				}
 
 				void setup_callbacks( ) {
-					m_server->on_connection( [&]( daw::nodepp::lib::net::NetSocketStream socket ) {
+					m_server->on_connection( [&srv=m_server]( auto socket ) {
 						std::cout << "Connection from: " << socket->remote_address( ) << ":" << socket->remote_port( ) << std::endl;
 						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
 						// can be sent to all clients
-						auto send_buffer_callback_id = m_server->emitter( )->add_listener( "send_buffer", [socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
-							socket->write_async( *buffer );
+						auto send_buffer_callback_id = srv->emitter( )->add_listener( "send_buffer", [s=socket]( std::shared_ptr<daw::nodepp::base::data_t> buffer ) mutable {
+							s->write_async( *buffer );
 						} );
 
+						//TODO:****************DAW**********HERE***********
 						// The close_all callback will close all vnc sessions but the one specified.  This is used when
 						// a client connects and requests that no other clients share the session
-						auto close_all_callback_id = m_server->emitter( )->add_listener( "close_all", [send_buffer_callback_id, socket]( int64_t current_callback_id ) mutable {
-							if( send_buffer_callback_id != current_callback_id ) {
-								socket->close( );
+						auto close_all_callback_id = srv->emitter( )->add_listener( "close_all", [test_callback_id=send_buffer_callback_id, s=socket]( int64_t current_callback_id ) mutable {
+							if( test_callback_id != current_callback_id ) {
+								s->close( );
 							}
 						} );
 
 						// When socket is closed, remove registered callbacks in server
-						socket->emitter( )->on( "close", [&, send_buffer_callback_id, close_all_callback_id]( ) {
-							m_server->emitter( )->remove_listener( "send_buffer", send_buffer_callback_id );
-							m_server->emitter( )->remove_listener( "close_all", close_all_callback_id );
+						socket->emitter( )->on( "close", [&srv, send_buffer_callback_id, close_all_callback_id]( ) {
+							srv->emitter( )->remove_listener( "send_buffer", send_buffer_callback_id );
+							srv->emitter( )->remove_listener( "close_all", close_all_callback_id );
 						} );
 
 						// We have sent the server version, now validate client version
-						socket->on_next_data_received( [socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
+						socket->on_next_data_received( [s1=socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
 							if( !revc_client_version_msg( socket, buffer1 ) ) {
 								socket->close( );
 								return;
