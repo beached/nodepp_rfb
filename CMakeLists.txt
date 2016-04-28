@@ -71,9 +71,6 @@ include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories( SYSTEM ${OPENSSL_INCLUDE_DIR} )
 
 
-ExternalProject_Get_Property( nodepp header_libraries_include )
-include_directories( ${header_libaries_include} )
-
 link_directories( ${Boost_LIBRARY_DIRS} )
 
 ExternalProject_Get_Property( nodepp binary_dir )

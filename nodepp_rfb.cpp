@@ -103,7 +103,7 @@ namespace daw {
 
 				template<typename T>
 				bool as_bool( T const value ) {
-					static_assert(std::is_integral_v<T>, "Parameter to as_bool must be an Integral type");
+					static_assert(::daw::traits::is_integral_v<T>, "Parameter to as_bool must be an Integral type");
 					return value != 0;
 				}
 			}	// namespace anonymous
@@ -134,7 +134,7 @@ namespace daw {
 				}
 
 				void setup_callbacks( ) {
-					m_server->on_connection( [&srv=m_server]( auto socket ) {
+					m_server->on_connection( [&, &srv=m_server]( auto socket ) {
 						std::cout << "Connection from: " << socket->remote_address( ) << ":" << socket->remote_port( ) << std::endl;
 						// Setup send_buffer callback on server.  This is registered by all sockets so that updated areas
 						// can be sent to all clients
@@ -158,7 +158,7 @@ namespace daw {
 						} );
 
 						// We have sent the server version, now validate client version
-						socket->on_next_data_received( [s1=socket, this, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
+						socket->on_next_data_received( [&, s1=socket, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
 							if( !revc_client_version_msg( socket, buffer1 ) ) {
 								socket->close( );
 								return;
