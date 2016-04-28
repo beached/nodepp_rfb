@@ -79,6 +79,6 @@ link_directories( "${binary_dir}/char_range" )
 
 
 add_executable( nodepp_rfb ${SOURCE_FILES} )
-add_dependencies( nodepp_rfb nodepp lib_nodepp )
+add_dependencies( nodepp_rfb nodepp )
 
 target_link_libraries( nodepp_rfb lib_nodepp char_range ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_Libs} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
