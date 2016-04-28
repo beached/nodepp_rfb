@@ -283,7 +283,8 @@ namespace daw {
 				}
 
 				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
-					socket << "RFB 003.003\n";
+					std::string const rfb_version = "RFB 003.003\n";
+					socket << rfb_version;
 				}
 
 				bool revc_client_version_msg( daw::nodepp::lib::net::NetSocketStream socket, std::shared_ptr<daw::nodepp::base::data_t> data_buffer ) {

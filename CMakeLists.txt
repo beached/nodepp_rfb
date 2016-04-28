@@ -18,11 +18,11 @@ IF( ${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" )
 ELSEIF( ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" )
 	MESSAGE( WARNING "Using Clang" )
 	find_package( Threads REQUIRED )
-	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -g -Weverything -Wno-c++98-compat  -Wfatal-errors -Wno-covered-switch-default -Wno-padded -Wno-exit-time-destructors -Wno-c++98-compat-pedantic -Wno-unused-parameter -Wno-missing-noreturn -Wno-missing-prototypes -Wno-disabled-macro-expansion" )
+	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -g -Weverything -Wno-c++98-compat -Wfatal-errors -Wno-covered-switch-default -Wno-padded -Wno-exit-time-destructors -Wno-c++98-compat-pedantic -Wno-unused-parameter -Wno-missing-noreturn -Wno-missing-prototypes -Wno-disabled-macro-expansion" )
 ELSEIF( ${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" )
 	MESSAGE( WARNING "Using G++" )
 	find_package( Threads REQUIRED )
-	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -g -O3 -Wall -Wno-deprecated-declarations" )
+	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -g -Wall -Wno-deprecated-declarations" )
 ENDIF()
 
 if( THREADS_HAVE_PTHREAD_ARG )
@@ -41,6 +41,20 @@ ExternalProject_Add(
 		TEST_COMMAND ""
 )
 
+ExternalProject_Add(
+		header_libraries
+		GIT_REPOSITORY "https://github.com/beached/header_libraries.git"
+		GIT_TAG "master"
+		PATCH_COMMAND ""
+		INSTALL_COMMAND ""
+		SOURCE_DIR "${CMAKE_BINARY_DIR}/3rdparty/header_libraries"
+		TEST_COMMAND ""
+)
+
+set( header_libraries_include "${CMAKE_BINARY_DIR}/3rdparty/header_libraries" )
+set_property( GLOBAL PROPERTY header_libraries_include ${header_libraries_include} )
+include_directories( SYSTEM ${header_libraries_include} )
+
 set( SOURCE_FILES
 		nodepp_rfb.cpp
 		nodepp_rfb.h
@@ -51,7 +65,6 @@ ExternalProject_Get_Property( nodepp source_dir )
 
 include_directories( "${source_dir}/lib_nodepp" )
 include_directories( "${source_dir}/char_range" )
-include_directories( "${source_dir}/header_libraries" )
 
 include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
 
