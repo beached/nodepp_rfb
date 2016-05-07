@@ -11,7 +11,7 @@ set( Boost_Libs ${BOOST_Libraries} -lboost_system -lboost_regex -lboost_filesyst
 find_package(OpenSSL REQUIRED)
 
 MESSAGE( WARNING "Current Compiler:" ${CMAKE_CXX_COMPILER_ID} )
-IF( ${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC" )
+IF( ${CMAKE_CXX_COMPILER_ID} STREQUAL 'MSVC' )
 	MESSAGE( WARNING "Using Visual Studio" )
 	set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_WIN32_WINNT=0x0601 /MP" )
 	set( Boost_Libs )
