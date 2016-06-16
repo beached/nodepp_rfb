@@ -25,14 +25,15 @@ endif()
 
 enable_testing()
 
-ExternalProject_Add(
-		header_libraries_prj
-		GIT_REPOSITORY "https://github.com/beached/header_libraries.git"
-		GIT_TAG "master"
-		PATCH_COMMAND ""
-		INSTALL_COMMAND ""
-		SOURCE_DIR "${CMAKE_BINARY_DIR}/3rdparty/header_libraries"
-		TEST_COMMAND ""
+externalproject_add( 
+	header_libraries_prj
+	GIT_REPOSITORY "https://github.com/beached/header_libraries.git"
+	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/header_libraries"
+	GIT_TAG "master"
+	PATCH_COMMAND ""
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+	TEST_COMMAND ""
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
 )
 
 externalproject_add(
