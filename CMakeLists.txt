@@ -70,14 +70,14 @@ externalproject_add(
 )
 
 externalproject_add(
-    lib_nodepp_prj
-    GIT_REPOSITORY "https://github.com/beached/lib_nodepp.git"
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/lib_nodepp"
-    GIT_TAG "master"
-    PATCH_COMMAND ""
-    INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
-    TEST_COMMAND ""
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+	lib_nodepp_prj
+	GIT_REPOSITORY "https://github.com/beached/lib_nodepp.git"
+	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/lib_nodepp"
+	GIT_TAG "master"
+	PATCH_COMMAND ""
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+	TEST_COMMAND ""
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
 )
 
 include_directories( SYSTEM "${CMAKE_BINARY_DIR}/install/include" )
