@@ -92,7 +92,7 @@ set( NODEPPRFB_LIBS nodepp char_range parse_json  ${Boost_LIBRARIES} ${OPENSSL_L
 
 set( SOURCE_FILES
 		nodepp_rfb.h
-		rfb_message.h
+		rfb_messages.h
 		nodepp_rfb.cpp
 		nodepp_rfb_test.cpp
 		)
