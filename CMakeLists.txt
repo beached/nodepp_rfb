@@ -26,17 +26,17 @@ endif()
 enable_testing()
 
 ExternalProject_Add(
-		nodepp
-		GIT_REPOSITORY "https://github.com/beached/nodepp.git"
+		lib_nodepp_prj
+		GIT_REPOSITORY "https://github.com/beached/lib_nodepp.git"
 		GIT_TAG "master"
 		PATCH_COMMAND ""
 		INSTALL_COMMAND ""
-		SOURCE_DIR "${CMAKE_BINARY_DIR}/3rdparty/nodepp"
+		SOURCE_DIR "${CMAKE_BINARY_DIR}/3rdparty/lib_nodepp"
 		TEST_COMMAND ""
 )
 
 ExternalProject_Add(
-		header_libraries
+		header_libraries_prj
 		GIT_REPOSITORY "https://github.com/beached/header_libraries.git"
 		GIT_TAG "master"
 		PATCH_COMMAND ""
@@ -55,7 +55,7 @@ set( SOURCE_FILES
 		nodepp_rfb_test.cpp
 		)
 
-ExternalProject_Get_Property( nodepp source_dir )
+ExternalProject_Get_Property( lib_nodepp_prj source_dir )
 
 include_directories( "${source_dir}/nodepp" )
 include_directories( "${source_dir}/char_range" )
@@ -67,12 +67,12 @@ include_directories( SYSTEM ${OPENSSL_INCLUDE_DIR} )
 
 link_directories( ${Boost_LIBRARY_DIRS} )
 
-ExternalProject_Get_Property( nodepp binary_dir )
+ExternalProject_Get_Property( lib_nodepp_prj binary_dir )
 link_directories( "${binary_dir}/nodepp" )
 link_directories( "${binary_dir}/char_range" )
 
 
 add_executable( nodepp_rfb ${SOURCE_FILES} )
-add_dependencies( nodepp_rfb nodepp )
+add_dependencies( nodepp_rfb lib_nodepp_prj )
 
 target_link_libraries( nodepp_rfb nodepp char_range ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
