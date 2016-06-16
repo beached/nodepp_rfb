@@ -26,16 +26,6 @@ endif()
 enable_testing()
 
 ExternalProject_Add(
-		lib_nodepp_prj
-		GIT_REPOSITORY "https://github.com/beached/lib_nodepp.git"
-		GIT_TAG "master"
-		PATCH_COMMAND ""
-		INSTALL_COMMAND ""
-		SOURCE_DIR "${CMAKE_BINARY_DIR}/3rdparty/lib_nodepp"
-		TEST_COMMAND ""
-)
-
-ExternalProject_Add(
 		header_libraries_prj
 		GIT_REPOSITORY "https://github.com/beached/header_libraries.git"
 		GIT_TAG "master"
@@ -45,34 +35,67 @@ ExternalProject_Add(
 		TEST_COMMAND ""
 )
 
-set( header_libraries_include "${CMAKE_BINARY_DIR}/3rdparty/header_libraries" )
-set_property( GLOBAL PROPERTY header_libraries_include ${header_libraries_include} )
-include_directories( SYSTEM ${header_libraries_include} )
+externalproject_add(
+	char_range_prj
+	GIT_REPOSITORY "https://github.com/beached/char_range.git"
+	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/char_range"
+	GIT_TAG "master"
+	PATCH_COMMAND ""
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+	TEST_COMMAND ""
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+)
+
+externalproject_add(
+	parse_json_prj
+	GIT_REPOSITORY "https://github.com/beached/parse_json.git"
+	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/parse_json"
+	GIT_TAG "master"
+	PATCH_COMMAND ""
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+	TEST_COMMAND ""
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+)
+
+externalproject_add(
+	parse_template_prj
+	GIT_REPOSITORY "https://github.com/beached/parse_template.git"
+	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/parse_template"
+	GIT_TAG "master"
+	PATCH_COMMAND ""
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+	TEST_COMMAND ""
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+)
+
+externalproject_add(
+    lib_nodepp_prj
+    GIT_REPOSITORY "https://github.com/beached/lib_nodepp.git"
+    SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/lib_nodepp"
+    GIT_TAG "master"
+    PATCH_COMMAND ""
+    INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
+    TEST_COMMAND ""
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
+)
+
+include_directories( SYSTEM "${CMAKE_BINARY_DIR}/install/include" )
+link_directories( "${CMAKE_BINARY_DIR}/install/lib" )
+
+include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
+link_directories( ${Boost_LIBRARY_DIRS} )
+include_directories( SYSTEM ${OPENSSL_INCLUDE_DIR} )
+
+set( NODEPPRFB_DEPS header_libraries_prj char_range_prj parse_json_prj lib_nodepp_prj )
+set( NODEPPRFB_LIBS nodepp char_range parse_json  ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} )
 
 set( SOURCE_FILES
-		nodepp_rfb.cpp
 		nodepp_rfb.h
+		nodepp_rfb.cpp
 		nodepp_rfb_test.cpp
 		)
 
-ExternalProject_Get_Property( lib_nodepp_prj source_dir )
-
-include_directories( "${source_dir}/nodepp" )
-include_directories( "${source_dir}/char_range" )
-
-include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
-
-include_directories( SYSTEM ${OPENSSL_INCLUDE_DIR} )
-
-
-link_directories( ${Boost_LIBRARY_DIRS} )
-
-ExternalProject_Get_Property( lib_nodepp_prj binary_dir )
-link_directories( "${binary_dir}/nodepp" )
-link_directories( "${binary_dir}/char_range" )
-
-
 add_executable( nodepp_rfb ${SOURCE_FILES} )
-add_dependencies( nodepp_rfb lib_nodepp_prj )
+add_dependencies( nodepp_rfb ${NODEPPRFB_DEPS} )
 
-target_link_libraries( nodepp_rfb nodepp char_range ${CMAKE_DL_LIBS} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
+target_link_libraries( nodepp_rfb ${NODEPPRFB_LIBS} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${COMPILER_SPECIFIC_LIBS} )
