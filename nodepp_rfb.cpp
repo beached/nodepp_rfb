@@ -24,8 +24,8 @@
 #include <thread>
 #include <vector>
 
+#include <daw/nodepp/lib_net_server.h>
 #include "nodepp_rfb.h"
-#include "lib_net_server.h"
 #include "rfb_messages.h"
 
 
