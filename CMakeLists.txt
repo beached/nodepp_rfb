@@ -31,8 +31,6 @@ externalproject_add(
 	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/header_libraries"
 	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
 )
 
 externalproject_add(
@@ -42,8 +40,6 @@ externalproject_add(
 	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/char_range"
 	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
 )
 
 externalproject_add(
@@ -53,8 +49,6 @@ externalproject_add(
 	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/parse_json"
 	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
 )
 
 externalproject_add(
@@ -64,8 +58,6 @@ externalproject_add(
 	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/parse_template"
 	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
 )
 
 externalproject_add(
@@ -75,8 +67,6 @@ externalproject_add(
 	SOURCE_DIR "${CMAKE_BINARY_DIR}/dependencies/lib_nodepp"
 	INSTALL_DIR "${CMAKE_BINARY_DIR}/install"
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/install
-	PATCH_COMMAND ""
-	TEST_COMMAND ""
 )
 
 include_directories( SYSTEM "${CMAKE_BINARY_DIR}/install/include" )
