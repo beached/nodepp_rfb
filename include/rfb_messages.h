@@ -1,6 +1,6 @@
 // The MIT License (MIT)
 //
-// Copyright (c) 2014-2015 Darrell Wright
+// Copyright (c) 2014-2017 Darrell Wright
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files( the "Software" ), to deal
@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #pragma once
-#include <cstring>
 #include <cstdint>
+#include <cstring>
 
 namespace daw {
 	namespace rfb {
@@ -45,33 +45,32 @@ namespace daw {
 				} pixel_format;
 				// Send name length/name after
 
-			};	// struct ServerInitialisation
+			}; // struct ServerInitialisation
 
 			struct ClientFrameBufferUpdateRequestMsg {
-				uint8_t message_type;	// Always 3
+				uint8_t message_type; // Always 3
 				uint8_t incremental;
 				uint16_t x;
 				uint16_t y;
 				uint16_t width;
 				uint16_t height;
-			};	// struct FramebufferUpdateRequest
+			}; // struct FramebufferUpdateRequest
 
 			struct ClientKeyEventMsg {
-				uint8_t message_type;	// Always 4
+				uint8_t message_type; // Always 4
 				uint8_t down_flag;
 				uint16_t padding;
 				uint32_t key;
-			};	// struct ClientKeyEventMsg
+			}; // struct ClientKeyEventMsg
 
 			struct ClientPointerEventMsg {
-				uint8_t message_type;	// Always 5
+				uint8_t message_type; // Always 5
 				uint8_t button_mask;
 				uint16_t x;
 				uint16_t y;
-			};	// struct ClientPointerEventMsg
+			}; // struct ClientPointerEventMsg
 
-		}	// namespace impl
-	}	// namespace rfb
+		} // namespace impl
+	}     // namespace rfb
 
-}	// namespace daw
-
+} // namespace daw

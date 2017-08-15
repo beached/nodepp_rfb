@@ -1,7 +1,8 @@
-
+*.crt
+*.key
+*.pem
 #ignore thumbnails created by windows
 Thumbs.db
-3rdparty/
 #Ignore files build by Visual Studio
 *.obj
 *.exe
@@ -47,6 +48,7 @@ _ReSharper*/
 x64/
 x86/
 build/
+cmake-build-*/
 bld/
 [Bb]in/
 [Oo]bj/

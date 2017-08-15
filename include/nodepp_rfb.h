@@ -1,6 +1,6 @@
 // The MIT License (MIT)
 //
-// Copyright (c) 2014-2015 Darrell Wright
+// Copyright (c) 2014-2017 Darrell Wright
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files( the "Software" ), to deal
@@ -27,19 +27,20 @@
 #include <string>
 #include <vector>
 
-#include <daw/nodepp/base_event_emitter.h>
 #include <daw/daw_range.h>
+#include <daw/nodepp/base_event_emitter.h>
+#include <daw/nodepp/lib_net_socket_stream.h>
 
-namespace daw { 
+namespace daw {
 	namespace rfb {
 
 		namespace impl {
 			class RFBServerImpl;
-		}	// namespace impl
+		} // namespace impl
 
 		namespace BitDepth {
-			enum values: uint8_t { eight = 8, sixteen = 16, thirtytwo = 32 };
-		}	// namespace BitDepth
+			enum values : uint8_t { eight = 8, sixteen = 16, thirtytwo = 32 };
+		} // namespace BitDepth
 
 		union ButtonMask {
 			uint8_t value;
@@ -53,7 +54,7 @@ namespace daw {
 				bool button_7 : 1;
 				bool button_8 : 1;
 			} button;
-		};	// union ButtonMask
+		}; // union ButtonMask
 
 		struct Colour {
 			uint8_t red;
@@ -66,29 +67,31 @@ namespace daw {
 		using BoxReadOnly = std::vector<daw::range::Range<uint8_t const *>>;
 
 		class RFBServer {
-			std::unique_ptr<impl::RFBServerImpl> m_impl;
-		public:	
+			std::shared_ptr<impl::RFBServerImpl> m_impl;
+
+		  public:
 			RFBServer( ) = delete;
-			RFBServer( RFBServer const & ) = delete;
-			RFBServer & operator=( RFBServer const & ) = delete;
-
-			RFBServer( uint16_t width, uint16_t height, BitDepth::values depth, daw::nodepp::base::EventEmitter emitter = daw::nodepp::base::create_event_emitter( ) );
 			~RFBServer( );
-			RFBServer( RFBServer && other );
-			RFBServer & operator=( RFBServer && rhs );
-			
+			RFBServer( RFBServer const & ) = default;
+			RFBServer &operator=( RFBServer const & ) = default;
+			RFBServer( RFBServer && ) noexcept = default;
+			RFBServer &operator=( RFBServer && ) noexcept = default;
 
-			uint16_t width( ) const;
-			uint16_t height( ) const;			
+			RFBServer( uint16_t width, uint16_t height, BitDepth::values depth,
+			           daw::nodepp::base::EventEmitter emitter = daw::nodepp::base::create_event_emitter( ) );
 
-			void listen( uint16_t port );
+			uint16_t width( ) const noexcept;
+			uint16_t height( ) const noexcept;
+
+			void listen( uint16_t port, daw::nodepp::lib::net::ip_version ip_ver );
 			void close( );
 
 			void on_key_event( std::function<void( bool key_down, uint32_t key )> callback );
-			void on_pointer_event( std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback );
-			void on_client_clipboard_text( std::function<void( boost::string_ref text )> callback );
+			void on_pointer_event(
+			    std::function<void( ButtonMask buttons, uint16_t x_position, uint16_t y_position )> callback );
+			void on_client_clipboard_text( std::function<void( daw::string_view text )> callback );
 
-			void send_clipboard_text( boost::string_ref text );
+			void send_clipboard_text( daw::string_view text );
 			void send_bell( );
 			//////////////////////////////////////////////////////////////////////////
 			/// Summary: get a bounded area that will later be updated to the client
@@ -98,6 +101,6 @@ namespace daw {
 			//////////////////////////////////////////////////////////////////////////
 			/// Summary: send all updated areas to client
 			void update( );
-		};	// class RFBServer
-	}	// namespace rfb
-}    // namespace daw
+		}; // class RFBServer
+	}      // namespace rfb
+} // namespace daw
