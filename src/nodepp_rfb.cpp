@@ -25,9 +25,9 @@
 #include <vector>
 
 #include <daw/daw_exception.h>
+#include <daw/daw_string_view.h>
 #include <daw/nodepp/lib_net_server.h>
 #include <daw/nodepp/lib_net_socket_stream.h>
-#include <daw/daw_string_view.h>
 
 #include "nodepp_rfb.h"
 #include "rfb_messages.h"
@@ -37,7 +37,15 @@ namespace daw {
 		namespace impl {
 			namespace {
 				constexpr uint8_t get_bit_depth( BitDepth::values bit_depth ) noexcept {
-					return bit_depth == BitDepth::eight ? 8 : bit_depth == BitDepth::sixteen ? 16 : 32;
+					switch( bit_depth ) {
+					case BitDepth::eight:
+						return 8;
+					case BitDepth::sixteen:
+						return 16;
+					case BitDepth::thirtytwo:
+					default:
+						return 32;
+					}
 				}
 
 				template<typename Collection, typename Func>
@@ -57,21 +65,20 @@ namespace daw {
 
 				ServerInitialisationMsg create_server_initialization_message( uint16_t width, uint16_t height,
 				                                                              uint8_t depth ) {
-					ServerInitialisationMsg result;
-					memset( &result, 0, sizeof( ServerInitialisationMsg ) );
+					ServerInitialisationMsg result{};
 					result.width = width;
 					result.height = height;
 					result.pixel_format.bpp = depth;
 					result.pixel_format.depth = depth;
-					result.pixel_format.true_colour_flag = true;
+					result.pixel_format.true_colour_flag = static_cast<uint8_t>( true );
 					result.pixel_format.red_max = 255;
 					result.pixel_format.blue_max = 255;
 					result.pixel_format.green_max = 255;
 					return result;
 				}
 
-				ButtonMask create_button_mask( uint8_t mask ) {
-					return *( reinterpret_cast<ButtonMask *>( &mask ) );
+				constexpr ButtonMask create_button_mask( uint8_t mask ) noexcept {
+					return ButtonMask{mask};
 				}
 
 				template<typename T>
@@ -106,7 +113,7 @@ namespace daw {
 				}
 
 				template<typename T>
-				bool as_bool( T const value ) {
+				constexpr bool as_bool( T const value ) noexcept {
 					static_assert(::daw::traits::is_integral_v<T>, "Parameter to as_bool must be an Integral type" );
 					return value != 0;
 				}
@@ -114,7 +121,7 @@ namespace daw {
 				constexpr size_t get_buffer_size( size_t width, size_t height, size_t bit_depth ) noexcept {
 					return static_cast<size_t>( width * height * ( bit_depth == 8 ? 1 : bit_depth == 16 ? 2 : 4 ) );
 				}
-			} // namespace anonymous
+			} // namespace
 
 			class RFBServerImpl final {
 				uint16_t m_width;
@@ -171,46 +178,48 @@ namespace daw {
 						} );
 
 						// We have sent the server version, now validate client version
-						socket->on_next_data_received( [this, socket, send_buffer_callback_id ](
-						    std::shared_ptr<daw::nodepp::base::data_t> buffer1, bool ) mutable {
-							if( !this->revc_client_version_msg( socket, buffer1 ) ) {
-								socket->close( );
-								return;
-							}
+						socket->on_next_data_received(
+						    [this, socket, send_buffer_callback_id]( std::shared_ptr<daw::nodepp::base::data_t> buffer1,
+						                                             bool ) mutable {
+							    if( !this->revc_client_version_msg( socket, buffer1 ) ) {
+								    socket->close( );
+								    return;
+							    }
 
-							// Authentication message is sent
-							socket->on_next_data_received(
-							    [socket, this, send_buffer_callback_id](
-							        std::shared_ptr<daw::nodepp::base::data_t> buffer2, bool ) mutable {
-								    // Client Initialization Message expected, data buffer should have 1 value
-								    if( !this->recv_client_initialization_msg( socket, buffer2, send_buffer_callback_id ) ) {
-									    socket->close( );
-									    return;
-								    }
-
-								    // Server Initialization Sent, main reception loop
-								    socket->on_data_received(
-								        [socket, this, send_buffer_callback_id](
-								            std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
-									        // Main Receive Loop
-									        this->parse_client_msg( socket, buffer3 );
+							    // Authentication message is sent
+							    socket->on_next_data_received(
+							        [socket, this, send_buffer_callback_id](
+							            std::shared_ptr<daw::nodepp::base::data_t> buffer2, bool ) mutable {
+								        // Client Initialization Message expected, data buffer should have 1 value
+								        if( !this->recv_client_initialization_msg( socket, buffer2,
+								                                                   send_buffer_callback_id ) ) {
+									        socket->close( );
 									        return;
-									        socket->read_async( );
-								        } );
-								    this->send_server_initialization_msg( socket );
-								    socket->read_async( );
-							    } );
-							this->send_authentication_msg( socket );
-							socket->read_async( );
-						} );
+								        }
+
+								        // Server Initialization Sent, main reception loop
+								        socket->on_data_received(
+								            [socket, this](
+								                std::shared_ptr<daw::nodepp::base::data_t> buffer3, bool ) mutable {
+									            // Main Receive Loop
+									            this->parse_client_msg( socket, buffer3 );
+									            return;
+									            socket->read_async( );
+								            } );
+								        this->send_server_initialization_msg( socket );
+								        socket->read_async( );
+							        } );
+							    this->send_authentication_msg( socket );
+							    socket->read_async( );
+						    } );
 						this->send_server_version_msg( socket );
 						socket->read_async( );
 					} );
 				}
 
-				void parse_client_msg( daw::nodepp::lib::net::NetSocketStream socket,
-				                       std::shared_ptr<daw::nodepp::base::data_t> buffer ) {
-					if( !buffer && buffer->size( ) < 1 ) {
+				void parse_client_msg( daw::nodepp::lib::net::NetSocketStream const &socket,
+				                       std::shared_ptr<daw::nodepp::base::data_t> const &buffer ) {
+					if( !buffer && buffer->empty( ) ) {
 						socket->close( );
 						return;
 					}
@@ -226,7 +235,8 @@ namespace daw {
 						if( buffer->size( ) < sizeof( ClientFrameBufferUpdateRequestMsg ) ) {
 							socket->close( );
 						}
-						auto req = daw::nodepp::base::from_data_t_to_value<ClientFrameBufferUpdateRequestMsg>( *buffer );
+						auto req =
+						    daw::nodepp::base::from_data_t_to_value<ClientFrameBufferUpdateRequestMsg>( *buffer );
 						add_update_request( req.x, req.y, req.width, req.height );
 						update( );
 					} break;
@@ -260,12 +270,12 @@ namespace daw {
 					}
 				}
 
-				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+				void send_server_version_msg( daw::nodepp::lib::net::NetSocketStream const &socket ) {
 					daw::string_view const rfb_version = "RFB 003.003\n";
 					socket->write( rfb_version );
 				}
 
-				bool revc_client_version_msg( daw::nodepp::lib::net::NetSocketStream socket,
+				bool revc_client_version_msg( daw::nodepp::lib::net::NetSocketStream const &socket,
 				                              std::shared_ptr<daw::nodepp::base::data_t> data_buffer ) {
 					auto result = validate_fixed_buffer( data_buffer, 12 );
 
@@ -283,14 +293,14 @@ namespace daw {
 					return result;
 				}
 
-				void send_server_initialization_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+				void send_server_initialization_msg( daw::nodepp::lib::net::NetSocketStream const &socket ) {
 					auto msg = std::make_shared<daw::nodepp::base::data_t>( );
 					append( *msg, to_bytes( create_server_initialization_message( m_width, m_height, m_bit_depth ) ) );
 					append( *msg, daw::string_view( "Test RFB Service" ) ); // Add title length and title values
-					socket->write( *msg );                             // Send msg
+					socket->write( *msg );                                  // Send msg
 				}
 
-				void send_authentication_msg( daw::nodepp::lib::net::NetSocketStream socket ) {
+				void send_authentication_msg( daw::nodepp::lib::net::NetSocketStream const &socket ) {
 					auto msg = std::make_shared<daw::nodepp::base::data_t>( );
 					append( *msg, to_bytes( static_cast<uint32_t>( 1 ) ) ); // Authentication Scheme 1, No Auth
 					socket->write( *msg );
@@ -302,7 +312,7 @@ namespace daw {
 				    : m_width{width}
 				    , m_height{height}
 				    , m_bit_depth{bit_depth}
-				    , m_buffer(get_buffer_size( width, height, bit_depth ) )
+				    , m_buffer( get_buffer_size( width, height, bit_depth ) )
 				    , m_server{daw::nodepp::lib::net::create_net_server( std::move( emitter ) )} {
 
 					std::fill( m_buffer.begin( ), m_buffer.end( ), 0 );
@@ -396,7 +406,8 @@ namespace daw {
 				}
 
 				void send_clipboard_text( daw::string_view text ) {
-					daw::exception::daw_throw_on_false( text.size( ) <= std::numeric_limits<uint32_t>::max( ), "Invalid text size" );
+					daw::exception::daw_throw_on_false( text.size( ) <= std::numeric_limits<uint32_t>::max( ),
+					                                    "Invalid text size" );
 					auto buffer = std::make_shared<daw::nodepp::base::data_t>( );
 					buffer->push_back( 0 ); // Message Type, ServerCutText
 					buffer->push_back( 0 ); // Padding
@@ -433,8 +444,7 @@ namespace daw {
 		    : m_impl( std::make_shared<impl::RFBServerImpl>( width, height, impl::get_bit_depth( depth ),
 		                                                     std::move( emitter ) ) ) {}
 
-		RFBServer::~RFBServer( ) {} // Empty but cannot use default.  The destructor on std::unique_ptr needs to know
-		                            // the full info for RFBServerImpl
+		RFBServer::~RFBServer( ) = default;
 
 		uint16_t RFBServer::width( ) const noexcept {
 			return m_impl->width( );
@@ -442,6 +452,14 @@ namespace daw {
 
 		uint16_t RFBServer::height( ) const noexcept {
 			return m_impl->height( );
+		}
+
+		uint16_t RFBServer::max_x( ) const noexcept {
+			return static_cast<uint16_t>(width( ) - 1);
+		}
+
+		uint16_t RFBServer::max_y( ) const noexcept {
+			return static_cast<uint16_t>(height( ) - 1);
 		}
 
 		void RFBServer::listen( uint16_t port, daw::nodepp::lib::net::ip_version ip_ver ) {

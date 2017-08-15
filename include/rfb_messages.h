@@ -30,7 +30,7 @@ namespace daw {
 			struct ServerInitialisationMsg {
 				uint16_t width;
 				uint16_t height;
-				struct {
+				struct pixel_format_t {
 					uint8_t bpp;
 					uint8_t depth;
 					uint8_t big_endian_flag;
@@ -42,9 +42,22 @@ namespace daw {
 					uint16_t green_shift;
 					uint16_t blue_shift;
 					uint8_t padding[3];
+
+					constexpr pixel_format_t( ) noexcept
+					    : bpp{0}
+					    , depth{0}
+					    , big_endian_flag{0}
+					    , true_colour_flag{0}
+					    , red_max{0}
+					    , green_max{0}
+					    , blue_max{0}
+					    , red_shift{0}
+					    , green_shift{0}
+					    , blue_shift{0}
+					    , padding{0, 0, 0} {}
 				} pixel_format;
 				// Send name length/name after
-
+				constexpr ServerInitialisationMsg( ) noexcept: width{0}, height{0} {}
 			}; // struct ServerInitialisation
 
 			struct ClientFrameBufferUpdateRequestMsg {

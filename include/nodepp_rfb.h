@@ -54,6 +54,7 @@ namespace daw {
 				bool button_7 : 1;
 				bool button_8 : 1;
 			} button;
+			constexpr explicit ButtonMask( uint8_t v ) noexcept : value{v} {}
 		}; // union ButtonMask
 
 		struct Colour {
@@ -82,6 +83,8 @@ namespace daw {
 
 			uint16_t width( ) const noexcept;
 			uint16_t height( ) const noexcept;
+			uint16_t max_x( ) const noexcept;
+			uint16_t max_y( ) const noexcept;
 
 			void listen( uint16_t port, daw::nodepp::lib::net::ip_version ip_ver );
 			void close( );
